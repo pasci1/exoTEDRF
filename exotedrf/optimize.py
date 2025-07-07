@@ -191,7 +191,7 @@ def main():
                 f"{trial_params['time_rejection_threshold']}\t"
                 f"{trial_params['nirspec_mask_width']}\t"
                 f"{dt:.3f}\t"
-                f"{J:.6g}\n"
+                f"{J:.6f}\n"
             )
 
             print(f"   {key}={trial} → J={J:.3g} ({dt:.1f}s)")
