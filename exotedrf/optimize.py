@@ -88,6 +88,10 @@ def main():
     p.add_argument("--w3", type=float, default=1.0)
     args = p.parse_args()
 
+    # ─── START GLOBAL TIMER ─────────────────────────────────────────────
+    t0_total = time.perf_counter()
+    # ────────────────────────────────────────────────────────────────────
+
     # 1) load config + 50‐int slice exactly as before
     cfg = parse_config(args.config)
     seg1    = cfg['input_dir'] + "/jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
@@ -100,12 +104,12 @@ def main():
 
     # 2) define your parameter ranges
     param_ranges = {
-        'time_window':              [3, 5, 7],
-        'box_size':                 [5, 10, 15],
-        'thresh':                   [10, 15, 20],
-        'rejection_threshold':      [5, 10, 15],
-        'time_rejection_threshold': [5, 10, 15],
-        'nirspec_mask_width':       [14, 16, 18],
+        'time_window':              [5],
+        'box_size':                 [10],
+        'thresh':                   [15],
+        'rejection_threshold':      [1,2,5,6,9, 10, 15],
+        'time_rejection_threshold': [10],
+        'nirspec_mask_width':       [16],
     }
     # the order you want to optimize in:
     param_order = [
@@ -175,6 +179,11 @@ def main():
     print("params =", {k:current[k] for k in param_order})
     print("J =", best_J)
     print("last dt =", best_dt)
+
+    # ─── STOP GLOBAL TIMER & PRINT TOTAL ────────────────────────────────
+    t1_total = time.perf_counter()
+    print(f"TOTAL optimization runtime: {t1_total - t0_total:.1f} s")
+    # ────────────────────────────────────────────────────────────────────
 
 
 if __name__ == "__main__":
