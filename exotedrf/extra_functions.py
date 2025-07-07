@@ -74,18 +74,32 @@ def download_observations(proposal_id, instrument_name=None, objectname=None, fi
             ii = np.where(nums == exps[visit - 1][0])[0]
             this_visit = products[ii]
             # Download the relevant files.
-            Observations.download_products(this_visit)
+            Observations.download_products( # PASCAL changed such that it skips already existing files
+               this_visit,
+               cache=True,
+               download_dir="mastDownload"
+            )
+           
     else:
         # Download the relevant files.
-        Observations.download_products(products)
+        Observations.download_products( # PASCAL changed such that it skips already existing files
+            products,
+            cache=True,
+            download_dir="mastDownload"
+        )
 
     # Unpack auto-generated directories into something better.
-    os.mkdir('DMS_uncal')
+    # PASCAL walk through mastDownload and only move files that aren't already in DMS_uncal/
     for root, _, files in os.walk('mastDownload/', topdown=False):
         for name in files:
-            file = os.path.join(root, name)
-            shutil.move(file, 'DMS_uncal/.')
-    shutil.rmtree('mastDownload/')
+            src = os.path.join(root, name)
+            dst = os.path.join('DMS_uncal', name)
+            if not os.path.exists(dst):
+                shutil.move(src, dst)
+            else:
+                # already unpacked, skip
+                print(f"Skipping {name!r}: already in DMS_uncal/")
+    shutil.rmtree('mastDownload/', ignore_errors=True)
 
     return
 
