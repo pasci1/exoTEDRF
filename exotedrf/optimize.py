@@ -72,15 +72,15 @@ def evaluate(cfg, dm_slice, params, skip_steps):
     return J, dt
 
 # ----------------------------------------
-# 3) Main & grid‐search
+# 3) Main & coordinate‐descent optimization with logging
 # ----------------------------------------
 def main():
-    import argparse, yaml, time, numpy as np
-    from itertools import product
+    import argparse, time, numpy as np
     from jwst import datamodels
     from exotedrf.utils import parse_config
     from exotedrf.stage1 import run_stage1
 
+    # 1) parse arguments
     p = argparse.ArgumentParser()
     p.add_argument("--config", default="run_WASP39b.yaml")
     p.add_argument("--w1", type=float, default=1.0)
@@ -88,11 +88,7 @@ def main():
     p.add_argument("--w3", type=float, default=1.0)
     args = p.parse_args()
 
-    # ─── START GLOBAL TIMER ─────────────────────────────────────────────
-    t0_total = time.perf_counter()
-    # ────────────────────────────────────────────────────────────────────
-
-    # 1) load config + 50‐int slice exactly as before
+    # 2) load config + 50‐int slice
     cfg = parse_config(args.config)
     seg1    = cfg['input_dir'] + "/jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
     dm_full = datamodels.open(seg1)
@@ -102,16 +98,15 @@ def main():
     dm_slice.meta.exposure.nints = K
     dm_full.close()
 
-    # 2) define your parameter ranges
+    # 3) define your parameter ranges
     param_ranges = {
-        'time_window':              [5],
-        'box_size':                 [10],
-        'thresh':                   [15],
-        'rejection_threshold':      [1,2,5,6,9, 10, 15],
+        'time_window':              [5, 7],
+        'box_size':                 [10, 12],
+        'thresh':                   [14,15],
+        'rejection_threshold':      [10,12],
         'time_rejection_threshold': [10],
         'nirspec_mask_width':       [16],
     }
-    # the order you want to optimize in:
     param_order = [
         'time_window',
         'box_size',
@@ -121,23 +116,24 @@ def main():
         'nirspec_mask_width',
     ]
 
-    # 3) initialize a “current best” dict with the default (middle) values
-    current = {p: np.median(param_ranges[p]).astype(int) for p in param_order}
+    # 4) initialize with median/default values
+    current = {p: int(np.median(param_ranges[p])) for p in param_order}
     current.update(w1=args.w1, w2=args.w2, w3=args.w3)
 
     skip_steps = ['OneOverFStep', 'JumpStep']
 
     def evaluate_one(params):
-        # run stage1 with just these params
+        # run_stage1 kwargs
         kwargs = dict(
-            rejection_threshold = params['rejection_threshold'],
+            rejection_threshold      = params['rejection_threshold'],
             time_rejection_threshold = params['time_rejection_threshold'],
-            nirspec_mask_width = params['nirspec_mask_width'],
+            nirspec_mask_width       = params['nirspec_mask_width'],
             **cfg['stage1_kwargs']
         )
-        # pass time_window and box_size into jumpstep if you wired them in:
-        step_kwargs = {'window': params['time_window'],
-                       'box_size': params['box_size']}
+        step_kwargs = {
+            'window':   params['time_window'],
+            'box_size': params['box_size'],
+        }
         t0 = time.perf_counter()
         result = run_stage1(
             [dm_slice],
@@ -148,43 +144,56 @@ def main():
             **kwargs,
             **step_kwargs
         )
-        t1 = time.perf_counter()
+        dt = time.perf_counter() - t0
         dm_out = result[0]
         J = cost_function(dm_out, params['w1'], params['w2'], params['w3'])
-        return J, t1-t0
+        return J, dt
 
-    # 4) coordinate‐descent: optimize each parameter in turn, holding the others fixed
-    best_time = None
+    # 5) open log file and write header
+    logfile = open("Cost_function.txt", "w")
+    logfile.write("time_window,box_size,thresh,rejection_threshold,"
+                  "time_rejection_threshold,nirspec_mask_width,duration_s,J\n")
+
+    # 6) coordinate‐descent: optimize each parameter in turn
+    best = (np.inf, None, None)  # (J, params, dt)
     for key in param_order:
+        print(f"\n→ Optimizing {key} (others fixed at "
+              f"{ {k:current[k] for k in current if k != key} })")
         best_val = current[key]
         best_J, best_dt = None, None
 
-        print(f"\n→ Optimizing {key} (fixing others at { {k:current[k] for k in current if k!=key} })")
         for trial in param_ranges[key]:
             trial_params = current.copy()
             trial_params[key] = trial
-
             J, dt = evaluate_one(trial_params)
-            print(f"   {key}={trial} → J={J:.3g} ({dt:.1f}s)")
 
+            # log to file
+            logfile.write(
+                f"{trial_params['time_window']},"
+                f"{trial_params['box_size']},"
+                f"{trial_params['thresh']},"
+                f"{trial_params['rejection_threshold']},"
+                f"{trial_params['time_rejection_threshold']},"
+                f"{trial_params['nirspec_mask_width']},"
+                f"{dt:.3f},{J:.6g}\n"
+            )
+
+            print(f"   {key}={trial} → J={J:.3g}, dt={dt:.1f}s")
             if best_J is None or J < best_J:
                 best_J, best_dt, best_val = J, dt, trial
 
-        # lock in the winner
         current[key] = best_val
+        best = (best_J, dict(current), best_dt)
         print(f"✔→ Best {key} = {best_val} (J={best_J:.3g}, dt={best_dt:.1f}s)")
 
-    # 5) final result
+    # 7) final summary
     print("\n=== FINAL OPTIMUM ===")
-    print("params =", {k:current[k] for k in param_order})
-    print("J =", best_J)
-    print("last dt =", best_dt)
+    print("params =", {k: current[k] for k in param_order})
+    print("J =", best[0])
+    print("last dt =", best[2])
 
-    # ─── STOP GLOBAL TIMER & PRINT TOTAL ────────────────────────────────
-    t1_total = time.perf_counter()
-    print(f"TOTAL optimization runtime: {t1_total - t0_total:.1f} s")
-    # ────────────────────────────────────────────────────────────────────
-
+    # 8) close log file
+    logfile.close()
 
 if __name__ == "__main__":
     main()
