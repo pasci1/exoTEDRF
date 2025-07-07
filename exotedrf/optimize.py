@@ -88,6 +88,10 @@ def main():
     p.add_argument("--w3", type=float, default=1.0)
     args = p.parse_args()
 
+    # ─── START GLOBAL TIMER ─────────────────────────────────────────────
+    t0_total = time.perf_counter()
+    # ────────────────────────────────────────────────────────────────────
+
     # 2) load config + 50‐int slice
     cfg = parse_config(args.config)
     seg1    = cfg['input_dir'] + "/jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
@@ -100,10 +104,10 @@ def main():
 
     # 3) define your parameter ranges
     param_ranges = {
-        'time_window':              [5, 7],
-        'box_size':                 [10, 12],
-        'thresh':                   [14,15],
-        'rejection_threshold':      [10,12],
+        'time_window':              [5],
+        'box_size':                 [10],
+        'thresh':                   [15],
+        'rejection_threshold':      [1,2,5,6,9,10,15],
         'time_rejection_threshold': [10],
         'nirspec_mask_width':       [16],
     }
@@ -123,7 +127,6 @@ def main():
     skip_steps = ['OneOverFStep', 'JumpStep']
 
     def evaluate_one(params):
-        # run_stage1 kwargs
         kwargs = dict(
             rejection_threshold      = params['rejection_threshold'],
             time_rejection_threshold = params['time_rejection_threshold'],
@@ -151,9 +154,17 @@ def main():
 
     # 5) open log file and write header
     logfile = open("Cost_function.txt", "w")
-    logfile.write("time_window,box_size,thresh,rejection_threshold,"
-                  "time_rejection_threshold,nirspec_mask_width,duration_s,J\n")
-
+        logfile = open("Cost_function.txt", "w")
+    logfile.write(
+        "time_window\t"
+        "box_size\t"
+        "thresh\t"
+        "rejection_threshold\t"
+        "time_rejection_threshold\t"
+        "nirspec_mask_width\t"
+        "duration_s\t"
+        "J\n"
+    )
     # 6) coordinate‐descent: optimize each parameter in turn
     best = (np.inf, None, None)  # (J, params, dt)
     for key in param_order:
@@ -169,13 +180,14 @@ def main():
 
             # log to file
             logfile.write(
-                f"{trial_params['time_window']},"
-                f"{trial_params['box_size']},"
-                f"{trial_params['thresh']},"
-                f"{trial_params['rejection_threshold']},"
-                f"{trial_params['time_rejection_threshold']},"
-                f"{trial_params['nirspec_mask_width']},"
-                f"{dt:.3f},{J:.6g}\n"
+                f"{trial_params['time_window']}\t"
+                f"{trial_params['box_size']}\t"
+                f"{trial_params['thresh']}\t"
+                f"{trial_params['rejection_threshold']}\t"
+                f"{trial_params['time_rejection_threshold']}\t"
+                f"{trial_params['nirspec_mask_width']}\t"
+                f"{dt:.3f}\t"
+                f"{J:.6g}\n"
             )
 
             print(f"   {key}={trial} → J={J:.3g}, dt={dt:.1f}s")
@@ -191,6 +203,11 @@ def main():
     print("params =", {k: current[k] for k in param_order})
     print("J =", best[0])
     print("last dt =", best[2])
+
+    # ─── STOP GLOBAL TIMER & PRINT TOTAL ────────────────────────────────
+    t1_total = time.perf_counter()
+    print(f"TOTAL optimization runtime: {t1_total - t0_total:.1f} s")
+    # ────────────────────────────────────────────────────────────────────
 
     # 8) close log file
     logfile.close()
