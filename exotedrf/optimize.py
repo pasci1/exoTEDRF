@@ -72,37 +72,40 @@ def evaluate(cfg, dm_slice, params, skip_steps):
     return J, dt
 
 # ----------------------------------------
-# 3) Main & coordinate‐descent optimization with logging
+# 3) Main & coordinate‐descent
 # ----------------------------------------
 def main():
-    import argparse, time, numpy as np
+    import argparse
+    import time
+    import numpy as np
+    from itertools import product
     from jwst import datamodels
     from exotedrf.utils import parse_config
     from exotedrf.stage1 import run_stage1
 
-    # 1) parse arguments
+    # 1) parse args & config
     p = argparse.ArgumentParser()
     p.add_argument("--config", default="run_WASP39b.yaml")
     p.add_argument("--w1", type=float, default=1.0)
     p.add_argument("--w2", type=float, default=1.0)
     p.add_argument("--w3", type=float, default=1.0)
     args = p.parse_args()
+    cfg = parse_config(args.config)
 
     # ─── START GLOBAL TIMER ─────────────────────────────────────────────
     t0_total = time.perf_counter()
     # ────────────────────────────────────────────────────────────────────
 
-    # 2) load config + 50‐int slice
-    cfg = parse_config(args.config)
-    seg1    = cfg['input_dir'] + "/jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
+    # 2) load 50‐int slice
+    seg1 = cfg['input_dir'] + "/jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
     dm_full = datamodels.open(seg1)
-    K       = min(50, dm_full.data.shape[0])
+    K = min(50, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.nints = K
     dm_full.close()
 
-    # 3) define your parameter ranges
+    # 3) parameter ranges & order
     param_ranges = {
         'time_window':              [5],
         'box_size':                 [10],
@@ -120,20 +123,21 @@ def main():
         'nirspec_mask_width',
     ]
 
-    # 4) initialize with median/default values
+    # 4) initialize current best at medians
     current = {p: int(np.median(param_ranges[p])) for p in param_order}
     current.update(w1=args.w1, w2=args.w2, w3=args.w3)
 
     skip_steps = ['OneOverFStep', 'JumpStep']
 
     def evaluate_one(params):
-        kwargs = dict(
-            rejection_threshold      = params['rejection_threshold'],
-            time_rejection_threshold = params['time_rejection_threshold'],
-            nirspec_mask_width       = params['nirspec_mask_width'],
+        # build kwargs
+        stage1_kwargs = dict(
+            rejection_threshold        = params['rejection_threshold'],
+            time_rejection_threshold   = params['time_rejection_threshold'],
+            nirspec_mask_width         = params['nirspec_mask_width'],
             **cfg['stage1_kwargs']
         )
-        step_kwargs = {
+        jump_kwargs = {
             'window':   params['time_window'],
             'box_size': params['box_size'],
         }
@@ -144,17 +148,16 @@ def main():
             baseline_ints=dm_slice.data.shape[0],
             save_results=False,
             skip_steps=skip_steps,
-            **kwargs,
-            **step_kwargs
+            **stage1_kwargs,
+            **jump_kwargs
         )
         dt = time.perf_counter() - t0
         dm_out = result[0]
         J = cost_function(dm_out, params['w1'], params['w2'], params['w3'])
         return J, dt
 
-    # 5) open log file and write header
+    # 5) open log file (TSV) and write header
     logfile = open("Cost_function.txt", "w")
-        logfile = open("Cost_function.txt", "w")
     logfile.write(
         "time_window\t"
         "box_size\t"
@@ -165,20 +168,21 @@ def main():
         "duration_s\t"
         "J\n"
     )
-    # 6) coordinate‐descent: optimize each parameter in turn
-    best = (np.inf, None, None)  # (J, params, dt)
+
+    # 6) coordinate‐descent
     for key in param_order:
-        print(f"\n→ Optimizing {key} (others fixed at "
-              f"{ {k:current[k] for k in current if k != key} })")
+        print(f"\n→ Optimizing {key} (others fixed = "
+              f"{ {k:current[k] for k in current if k!=key} })")
+        best_J = None
         best_val = current[key]
-        best_J, best_dt = None, None
+        best_dt = None
 
         for trial in param_ranges[key]:
             trial_params = current.copy()
             trial_params[key] = trial
             J, dt = evaluate_one(trial_params)
 
-            # log to file
+            # log this trial
             logfile.write(
                 f"{trial_params['time_window']}\t"
                 f"{trial_params['box_size']}\t"
@@ -190,27 +194,26 @@ def main():
                 f"{J:.6g}\n"
             )
 
-            print(f"   {key}={trial} → J={J:.3g}, dt={dt:.1f}s")
+            print(f"   {key}={trial} → J={J:.3g} ({dt:.1f}s)")
+
             if best_J is None or J < best_J:
-                best_J, best_dt, best_val = J, dt, trial
+                best_J, best_val, best_dt = J, trial, dt
 
         current[key] = best_val
-        best = (best_J, dict(current), best_dt)
         print(f"✔→ Best {key} = {best_val} (J={best_J:.3g}, dt={best_dt:.1f}s)")
 
-    # 7) final summary
+    logfile.close()
+
+    # 7) final report
     print("\n=== FINAL OPTIMUM ===")
     print("params =", {k: current[k] for k in param_order})
-    print("J =", best[0])
-    print("last dt =", best[2])
+    print("J =", best_J)
+    print("last dt =", best_dt)
 
     # ─── STOP GLOBAL TIMER & PRINT TOTAL ────────────────────────────────
     t1_total = time.perf_counter()
     print(f"TOTAL optimization runtime: {t1_total - t0_total:.1f} s")
     # ────────────────────────────────────────────────────────────────────
-
-    # 8) close log file
-    logfile.close()
 
 if __name__ == "__main__":
     main()
