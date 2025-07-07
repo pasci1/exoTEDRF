@@ -31,6 +31,10 @@ from exotedrf import utils, plotting
 from exotedrf.utils import fancyprint
 
 
+def test_stage1_fork():
+    print('Hello World')
+    return
+
 class DQInitStep:
     """Wrapper around default calwebb_detector1 Data Quality Initialization step with additional
     hot pixel flagging.
@@ -2723,6 +2727,7 @@ def run_stage1(results, mode, soss_background_model=None, baseline_ints=None,
     results : list[RampModel]
         Datafiles for each segment processed through Stage 1.
     """
+    print('start running Stage 1 from Fork')
 
     # ============== DMS Stage 1 ==============
     # Detector level processing.
@@ -2904,5 +2909,7 @@ def run_stage1(results, mode, soss_background_model=None, baseline_ints=None,
             step_kwargs = {}
         step = GainScaleStep(results, output_dir=outdir)
         results = step.run(save_results=save_results, force_redo=force_redo, **step_kwargs)
+
+    print('finish running Stage 1 from Fork')
 
     return results
