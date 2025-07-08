@@ -163,7 +163,7 @@ def main():
         result = run_stage1(
             [dm_slice],
             cfg['observing_mode'],
-            dm_slice.data.shape[0] - 1,
+            dm_slice.data.shape[0],
             save_results=False,
             skip_steps=skip_steps,
             **stage1_kwargs,
