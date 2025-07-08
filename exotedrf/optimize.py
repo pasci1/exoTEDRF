@@ -100,12 +100,12 @@ def main():
 
     # 3) parameter ranges & order SWEEP OVER THESE PARAMETERS
     param_ranges = {
-        'time_window':              [3,5,7,11],
-        'box_size':                 [2,5,10,15,20,30,50],
-        'thresh':                   [5, 10,15,20,30,50],
-        'rejection_threshold':      [5, 10,15,20,30,50],
-        'time_rejection_threshold': [5,10,15,30,40,50,60,70],
-        'nirspec_mask_width':       [5,10,15,30,40,50,60,70],
+        'time_window':              [3],
+        'box_size':                 [2],
+        'thresh':                   [5],
+        'rejection_threshold':      [5],
+        'time_rejection_threshold': [70,80,90,100,110],
+        'nirspec_mask_width':       [5],
     }
 
     """
