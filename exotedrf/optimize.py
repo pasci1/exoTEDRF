@@ -92,7 +92,7 @@ def main():
     # 2) load K‐int slice K= K =
     seg1 = cfg['input_dir'] + "/jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
     dm_full = datamodels.open(seg1)
-    K = min(61, dm_full.data.shape[0])
+    K = min(60, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.nints = K
