@@ -160,10 +160,12 @@ def main():
             'box_size': params['box_size'],
         }
         t0 = time.perf_counter()
+        baseline_ints = list(range(dm_slice.data.shape[0]))  # a list of all integration indices
+
         result = run_stage1(
             [dm_slice],
-            cfg['observing_mode'],
-            dm_slice.data.shape[0],
+            mode=cfg['observing_mode'],
+            baseline_ints=baseline_ints,
             save_results=False,
             skip_steps=skip_steps,
             **stage1_kwargs,
