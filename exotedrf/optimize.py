@@ -56,11 +56,11 @@ def cost_function(dm, w1=1.0, w2=1.0, w3=1.0):
 
     # — 1) Robust fractional scatter of white-light curve —
     #    MAD is ~1.4826*median(|x − median(x)|), but mad_std wraps that.
-    frac_wl = mad_std(wl) / np.median(wl)
+    frac_wl = mad_std(wl) / np.abs(np.median(wl))
 
     # — 2) Robust fractional scatter averaged over spectral rows —
     frac_spec_rows = [
-        mad_std(spec[:, i]) / np.median(spec[:, i])
+        mad_std(spec[:, i]) / np.abs(np.median(spec[:, i]))
         for i in range(spec.shape[1])
     ]
     frac_spec = np.mean(frac_spec_rows)
@@ -80,6 +80,8 @@ def main():
     from jwst import datamodels
     from exotedrf.utils import parse_config
     from exotedrf.stage1 import run_stage1
+
+
 
     # 1) parse args & config
     p = argparse.ArgumentParser()
@@ -137,6 +139,10 @@ def main():
         'time_rejection_threshold',
         'nirspec_mask_width',
     ]
+
+    # counter for status update
+    count = 0
+    total_steps = sum(len(v) for v in param_ranges.values())
 
     # 4) initialize current best at medians
     # this just makes sure to start with a median for the rest parameters fisrt sweeps
@@ -206,6 +212,8 @@ def main():
             trial_params[key] = trial
             J,  dt = evaluate_one(trial_params)
 
+            print(f"\n\n\n###########################################################\n Step: {count}/{total_steps}\n###########################################################\n\n\n")
+            count +=1 
             # log this trial
             logfile.write(
                 f"{trial_params['time_window']}\t"
