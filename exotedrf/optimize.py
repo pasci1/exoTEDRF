@@ -101,11 +101,11 @@ def main():
     # 3) parameter ranges & order SWEEP OVER THESE PARAMETERS
     param_ranges = {
         'time_window':              [3,5,7,11],
-        'box_size':                 [5,10,15,20],
-        'thresh':                   [10,15,20,30],
-        'rejection_threshold':      [10,15,20,30],
-        'time_rejection_threshold': [5,10,15,30],
-        'nirspec_mask_width':       [10,15,20,30],
+        'box_size':                 [2,5,10,15,20,30,50],
+        'thresh':                   [5, 10,15,20,30,50],
+        'rejection_threshold':      [5, 10,15,20,30,50],
+        'time_rejection_threshold': [5,10,15,30,40,50,60,70],
+        'nirspec_mask_width':       [5,10,15,30,40,50,60,70],
     }
 
     """
@@ -204,16 +204,16 @@ def main():
                 f"{trial_params['time_rejection_threshold']}\t"
                 f"{trial_params['nirspec_mask_width']}\t"
                 f"{dt:.1f}\t"
-                f"{J:.3f}\n"
+                f"{J:.6f}\n"
             )
 
-            print(f"   {key}={trial} → J={J:.3f} ({dt:.1f}s)")
+            print(f"   {key}={trial} → J={J:.6f} ({dt:.1f}s)")
 
             if best_J is None or J < best_J:
                 best_J, best_val, best_dt = J, trial, dt
 
         current[key] = best_val
-        print(f"✔→ Best {key} = {best_val} (J={best_J:.3f}, dt={best_dt:.1f}s)")
+        print(f"✔→ Best {key} = {best_val} (J={best_J:.6f}, dt={best_dt:.1f}s)")
 
     logfile.close()
 
