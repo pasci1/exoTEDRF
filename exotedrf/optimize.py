@@ -100,7 +100,7 @@ def main():
     # 2) load K‐int slice
     seg1 = cfg['input_dir'] + "/jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
     dm_full = datamodels.open(seg1)
-    K = min(10, dm_full.data.shape[0])
+    K = min(61, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.nints = K
@@ -108,12 +108,12 @@ def main():
 
     # 3) parameter ranges & order SWEEP OVER THESE PARAMETERS
     param_ranges = {
-        'time_window':              [3,7,17],
-        'box_size':                 [5,10,60],
-        'thresh':                   [12,15,90],
-        'rejection_threshold':      [6,8,10,70],
-        'time_rejection_threshold': [5,10,50],
-        'nirspec_mask_width':       [10,15,80],
+        'time_window':              [7,17],
+        'box_size':                 [10,60],
+        'thresh':                   [15,90],
+        'rejection_threshold':      [10,70],
+        'time_rejection_threshold': [10,50],
+        'nirspec_mask_width':       [15,80],
     }
     param_order = [
         'time_window',
@@ -128,7 +128,7 @@ def main():
     current = {p: int(np.median(param_ranges[p])) for p in param_order}
     current.update(w1=args.w1, w2=args.w2, w3=args.w3)
 
-    skip_steps = ['OneOverFStep', 'JumpStep'] 
+    skip_steps = ['OneOverFStep'] 
 
     def evaluate_one(params):
 
