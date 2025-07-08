@@ -128,7 +128,7 @@ def main():
     current = {p: int(np.median(param_ranges[p])) for p in param_order}
     current.update(w1=args.w1, w2=args.w2, w3=args.w3)
 
-    skip_steps = ['OneOverFStep']
+    skip_steps = ['OneOverFStep'] 
 
     def evaluate_one(params):
 
