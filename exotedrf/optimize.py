@@ -104,7 +104,7 @@ def main():
         'box_size':                 [2],
         'thresh':                   [5],
         'rejection_threshold':      [5],
-        'time_rejection_threshold': [70,80,90,100,110],
+        'time_rejection_threshold': [500, 100000],
         'nirspec_mask_width':       [5],
     }
 
