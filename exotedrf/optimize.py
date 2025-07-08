@@ -180,7 +180,7 @@ def main():
         for trial in param_ranges[key]:
             trial_params = current.copy()
             trial_params[key] = trial
-            J, dt = evaluate_one(trial_params)
+            J,  dt = evaluate_one(trial_params)
 
             # log this trial
             logfile.write(
