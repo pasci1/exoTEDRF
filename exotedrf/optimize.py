@@ -108,12 +108,12 @@ def main():
 
     # 3) parameter ranges & order SWEEP OVER THESE PARAMETERS
     param_ranges = {
-        'time_window':              [7,17],
-        'box_size':                 [10,60],
-        'thresh':                   [15,90],
-        'rejection_threshold':      [10,70],
-        'time_rejection_threshold': [10,50],
-        'nirspec_mask_width':       [15,80],
+        'time_window':              [3,5,7,11],
+        'box_size':                 [5,10,15,20],
+        'thresh':                   [10,15,20],
+        'rejection_threshold':      [10,15,20],
+        'time_rejection_threshold': [5,10,15],
+        'nirspec_mask_width':       [10,15,20],
     }
     param_order = [
         'time_window',
@@ -125,6 +125,7 @@ def main():
     ]
 
     # 4) initialize current best at medians
+    # this just makes sure to start with a median for the rest parameters fisrt sweeps
     current = {p: int(np.median(param_ranges[p])) for p in param_order}
     current.update(w1=args.w1, w2=args.w2, w3=args.w3)
 
@@ -225,6 +226,17 @@ def main():
     s = total % 60
     print(f"TOTAL optimization runtime: {h}h {m:02d}min {s:04.1f}s")
     # ────────────────────────────────────────────────────────────────────
+
+    # 8) write final optimum to logfile
+    logfile = open("Cost_function.txt", "a")  # reopen in append mode
+    logfile.write("\n# Final optimized parameters:\n")
+    for k in param_order:
+        logfile.write(f"# {k} = {current[k]}\n")
+    logfile.write(f"# Final cost J = {best_J:.0f}\n")
+    logfile.close()
+
+
+
 
 if __name__ == "__main__":
     main()
