@@ -30,6 +30,7 @@ def reduced_chi2(residuals, sigma=1.0):
     nu = residuals.size - 1  # degrees of freedom
     return Chi_2 / nu
 
+"""
 def cost_function(dm, w1, w2, w3):
     # 1) White-light stddev after detrending
     wl = compute_white_light(dm)
@@ -43,6 +44,10 @@ def cost_function(dm, w1, w2, w3):
     Chi2 = reduced_chi2(wl - np.mean(wl))
 
     return w1 * std_wl + w2 * std_spec + w3 * Chi2
+
+"""
+    
+
 
 def cost_function(dm, w1=1.0, w2=1.0, w3=1.0):
     # — Extract white-light & spectral curves —
@@ -157,8 +162,8 @@ def main():
         t0 = time.perf_counter()
         result = run_stage1(
             [dm_slice],
-            mode=cfg['observing_mode'],
-            baseline_ints=dm_slice.data.shape[0]-1,
+            cfg['observing_mode'],
+            dm_slice.data.shape[0] - 1,
             save_results=False,
             skip_steps=skip_steps,
             **stage1_kwargs,
