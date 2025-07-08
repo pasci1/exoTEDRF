@@ -5,6 +5,7 @@ import numpy as np
 from astropy.stats import mad_std
 from jwst import datamodels
 from scipy.signal import detrend
+from astropy.stats import mad_std
 
 from exotedrf.utils    import parse_config
 from exotedrf.stage1   import run_stage1
@@ -42,6 +43,25 @@ def cost_function(dm, w1, w2, w3):
     Chi2 = reduced_chi2(wl - np.mean(wl))
 
     return w1 * std_wl + w2 * std_spec + w3 * Chi2
+
+def cost_function(dm, w1=1.0, w2=1.0, w3=1.0):
+    # — Extract white-light & spectral curves —
+    wl   = compute_white_light(dm)             # shape (nints,)
+    spec = compute_spectral(dm)                # shape (nints, nrows)
+
+    # — 1) Robust fractional scatter of white-light curve —
+    #    MAD is ~1.4826*median(|x − median(x)|), but mad_std wraps that.
+    frac_wl = mad_std(wl) / np.median(wl)
+
+    # — 2) Robust fractional scatter averaged over spectral rows —
+    frac_spec_rows = [
+        mad_std(spec[:, i]) / np.median(spec[:, i])
+        for i in range(spec.shape[1])
+    ]
+    frac_spec = np.mean(frac_spec_rows)
+
+    # — Combine with weights —
+    return w1 * frac_wl + w2 * frac_spec
 
 # ----------------------------------------
 # 2) Stage1 evaluation
@@ -100,7 +120,7 @@ def main():
     # 2) load K‐int slice
     seg1 = cfg['input_dir'] + "/jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
     dm_full = datamodels.open(seg1)
-    K = min(61, dm_full.data.shape[0])
+    K = min(10, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.nints = K
@@ -115,6 +135,18 @@ def main():
         'time_rejection_threshold': [5,10,15],
         'nirspec_mask_width':       [10,15,20],
     }
+
+    # fast Check Params
+    param_ranges = {
+        'time_window':              [3,5,7],
+        'box_size':                 [5,10,15],
+        'thresh':                   [10,15],
+        'rejection_threshold':      [10,15],
+        'time_rejection_threshold': [5,10],
+        'nirspec_mask_width':       [10,15],
+    }
+
+
     param_order = [
         'time_window',
         'box_size',
@@ -129,7 +161,7 @@ def main():
     current = {p: int(np.median(param_ranges[p])) for p in param_order}
     current.update(w1=args.w1, w2=args.w2, w3=args.w3)
 
-    skip_steps = ['OneOverFStep'] 
+    skip_steps = ['OneOverFStep', 'JumpStep'] 
 
     def evaluate_one(params):
 
