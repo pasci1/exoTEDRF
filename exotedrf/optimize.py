@@ -53,7 +53,7 @@ def cost_function(dm, w1=1.0, w2=1.0, w3=1.0):
     # — Extract white-light & spectral curves —
     wl   = compute_white_light(dm)             # shape (nints,)
     spec = compute_spectral(dm)                # shape (nints, nrows)
-
+ 
     # — 1) Robust fractional scatter of white-light curve —
     #    MAD is ~1.4826*median(|x − median(x)|), but mad_std wraps that.
     frac_wl = mad_std(wl) / np.abs(np.median(wl))
