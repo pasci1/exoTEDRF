@@ -4,6 +4,7 @@ import os, time, itertools, yaml, argparse
 import numpy as np
 from astropy.stats import mad_std
 from jwst import datamodels
+from scipy.signal import detrend
 
 from exotedrf.utils    import parse_config
 from exotedrf.stage1   import run_stage1
@@ -22,25 +23,25 @@ def compute_spectral(dm):
     spec = dm.data.reshape(dm.data.shape[0], dm.data.shape[1], -1)
     return spec.mean(axis=2)  # shape (nints, dimy)
 
-def reduced_chi2(residuals, sigma=1.):
-    """Assume unit‐variance errors or pass in per‐point sigma."""
-    χ2 = np.sum((residuals / sigma)**2)
-    ν  = residuals.size - 1
-    return χ2 / ν
+def reduced_chi2(residuals, sigma=1.0):
+    """Compute reduced chi-squared assuming errors = sigma."""
+    Chi_2 = np.sum((residuals / sigma)**2)
+    nu = residuals.size - 1  # degrees of freedom
+    return Chi_2 / nu
 
 def cost_function(dm, w1, w2, w3):
-    # 1) White light MAD
+    # 1) White-light stddev after detrending
     wl = compute_white_light(dm)
-    mad_wl = mad_std(wl)  # robust scatter
-    
-    # 2) Spectral MAD (average over channels)
-    spec = compute_spectral(dm)  # shape (nints, nchannels)
-    mad_spec = np.mean([mad_std(spec[:,i]) for i in range(spec.shape[1])])
-    
-    # 3) χ²ν around a flat model (mean)
-    χν2 = reduced_chi2(wl - np.mean(wl))
-    
-    return w1*mad_wl + w2*mad_spec + w3*χν2
+    std_wl = np.std(detrend(wl))
+
+    # 2) Spectral stddev after detrending, averaged over all rows
+    spec = compute_spectral(dm)
+    std_spec = np.mean([np.std(detrend(spec[:, i])) for i in range(spec.shape[1])])
+
+    # 3) Reduced chi-squared around a flat (mean) model
+    Chi2 = reduced_chi2(wl - np.mean(wl))
+
+    return w1 * std_wl + w2 * std_spec + w3 * Chi2
 
 # ----------------------------------------
 # 2) Stage1 evaluation
@@ -96,7 +97,7 @@ def main():
     t0_total = time.perf_counter()
     # ────────────────────────────────────────────────────────────────────
 
-    # 2) load 50‐int slice
+    # 2) load K‐int slice
     seg1 = cfg['input_dir'] + "/jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
     dm_full = datamodels.open(seg1)
     K = min(10, dm_full.data.shape[0])
@@ -127,9 +128,15 @@ def main():
     current = {p: int(np.median(param_ranges[p])) for p in param_order}
     current.update(w1=args.w1, w2=args.w2, w3=args.w3)
 
-    skip_steps = ['OneOverFStep', 'JumpStep']
+    skip_steps = ['OneOverFStep']
 
     def evaluate_one(params):
+
+        # DEBUG ???
+        print("Running with params:", params)
+
+
+
         # build kwargs
         stage1_kwargs = dict(
             rejection_threshold        = params['rejection_threshold'],
@@ -184,13 +191,13 @@ def main():
 
             # log this trial
             logfile.write(
-                f"{trial_params['time_window']}\t\t"
-                f"{trial_params['box_size']}\t\t"
+                f"{trial_params['time_window']}\t"
+                f"{trial_params['box_size']}\t"
                 f"{trial_params['thresh']}\t"
-                f"{trial_params['rejection_threshold']}\t\t\t"
-                f"{trial_params['time_rejection_threshold']}\t\t\t\t"
-                f"{trial_params['nirspec_mask_width']}\t\t\t"
-                f"{dt:.1f}\t\t"
+                f"{trial_params['rejection_threshold']}\t"
+                f"{trial_params['time_rejection_threshold']}\t"
+                f"{trial_params['nirspec_mask_width']}\t"
+                f"{dt:.1f}\t"
                 f"{J:.0f}\n"
             )
 
@@ -216,7 +223,7 @@ def main():
     h = int(total) // 3600
     m = (int(total) % 3600) // 60
     s = total % 60
-    print(f"TOTAL optimization runtime: {h}h {m:02d} m{s:04.1f}s")
+    print(f"TOTAL optimization runtime: {h}h {m:02d}min {s:04.1f}s")
     # ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
