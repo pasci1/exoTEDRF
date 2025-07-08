@@ -92,7 +92,7 @@ def main():
     # 2) load K‐int slice K= K =
     seg1 = cfg['input_dir'] + "/jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
     dm_full = datamodels.open(seg1)
-    K = min(10, dm_full.data.shape[0])
+    K = min(61, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.nints = K
@@ -108,17 +108,17 @@ def main():
         'nirspec_mask_width':       [10,15,20],
     }
 
-    """
+    
     # fast Check Params
     param_ranges = {
-        'time_window':              [3,5,7],
-        'box_size':                 [5,10,15],
+        'time_window':              [5],
+        'box_size':                 [15],
         'thresh':                   [10,15],
         'rejection_threshold':      [10,15],
         'time_rejection_threshold': [5,10],
-        'nirspec_mask_width':       [10,15],
+        'nirspec_mask_width':       [15],
     }
-    """
+    
 
     param_order = [
         'time_window',
@@ -134,7 +134,7 @@ def main():
     current = {p: int(np.median(param_ranges[p])) for p in param_order}
     current.update(w1=args.w1, w2=args.w2, w3=args.w3)
 
-    skip_steps = ['JumpStep'] 
+    skip_steps = [] 
 
     def evaluate_one(params):
 
