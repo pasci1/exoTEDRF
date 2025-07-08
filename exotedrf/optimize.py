@@ -99,20 +99,20 @@ def main():
     # 2) load 50‐int slice
     seg1 = cfg['input_dir'] + "/jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
     dm_full = datamodels.open(seg1)
-    K = min(50, dm_full.data.shape[0])
+    K = min(10, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.nints = K
     dm_full.close()
 
-    # 3) parameter ranges & order
+    # 3) parameter ranges & order SWEEP OVER THESE PARAMETERS
     param_ranges = {
-        'time_window':              [5],
-        'box_size':                 [10],
-        'thresh':                   [15],
-        'rejection_threshold':      [1,2,5,6,9,10,15],
-        'time_rejection_threshold': [10],
-        'nirspec_mask_width':       [16],
+        'time_window':              [5,7,9],
+        'box_size':                 [5,10,15],
+        'thresh':                   [12,15,18],
+        'rejection_threshold':      [6,8,10,12],
+        'time_rejection_threshold': [5,10,15],
+        'nirspec_mask_width':       [10,15,20],
     }
     param_order = [
         'time_window',
@@ -184,23 +184,23 @@ def main():
 
             # log this trial
             logfile.write(
-                f"{trial_params['time_window']}\t"
-                f"{trial_params['box_size']}\t"
+                f"{trial_params['time_window']}\t\t"
+                f"{trial_params['box_size']}\t\t"
                 f"{trial_params['thresh']}\t"
-                f"{trial_params['rejection_threshold']}\t"
-                f"{trial_params['time_rejection_threshold']}\t"
-                f"{trial_params['nirspec_mask_width']}\t"
-                f"{dt:.3f}\t"
-                f"{J:.6f}\n"
+                f"{trial_params['rejection_threshold']}\t\t\t"
+                f"{trial_params['time_rejection_threshold']}\t\t\t\t"
+                f"{trial_params['nirspec_mask_width']}\t\t\t"
+                f"{dt:.1f}\t\t"
+                f"{J:.0f}\n"
             )
 
-            print(f"   {key}={trial} → J={J:.3g} ({dt:.1f}s)")
+            print(f"   {key}={trial} → J={J:.0f} ({dt:.1f}s)")
 
             if best_J is None or J < best_J:
                 best_J, best_val, best_dt = J, trial, dt
 
         current[key] = best_val
-        print(f"✔→ Best {key} = {best_val} (J={best_J:.3g}, dt={best_dt:.1f}s)")
+        print(f"✔→ Best {key} = {best_val} (J={best_J:.0f}, dt={best_dt:.1f}s)")
 
     logfile.close()
 
@@ -212,7 +212,11 @@ def main():
 
     # ─── STOP GLOBAL TIMER & PRINT TOTAL ────────────────────────────────
     t1_total = time.perf_counter()
-    print(f"TOTAL optimization runtime: {t1_total - t0_total:.1f} s")
+    total = t1_total - t0_total
+    h = int(total) // 3600
+    m = (int(total) % 3600) // 60
+    s = total % 60
+    print(f"TOTAL optimization runtime: {h}h {m:02d} m{s:04.1f}s")
     # ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
