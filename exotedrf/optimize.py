@@ -100,6 +100,10 @@ def main():
     K = min(60, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
+    #
+    dm_slice.meta.exposure.integration_start = 1
+    dm_slice.meta.exposure.integration_end   = K
+    #
     dm_slice.meta.exposure.nints = K
     dm_full.close()
 
