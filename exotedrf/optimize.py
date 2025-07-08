@@ -111,16 +111,17 @@ def main():
 
     # 3) parameter ranges & order SWEEP OVER THESE PARAMETERS
     param_ranges = {
-        'time_window':              [3,5,7],
-        'box_size':                 [5,10,15],
-        'thresh':                   [10,15,20],
-        'rejection_threshold':      [10,15,20],
-        'time_rejection_threshold': [5,10,15],
-        'nirspec_mask_width':       [10,15,20],
+        'time_window':              [3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,71,131],
+        'box_size':                 [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,70,150,200],
+        'thresh':                   [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,70,150,200],
+        'rejection_threshold':      [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,70,150,200],
+        'time_rejection_threshold': [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,70,150,200],
+        'nirspec_mask_width':       [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,70,150,200],
     }
 
     
     # fast Check Params
+    """
     param_ranges = {
         'time_window':              [5],
         'box_size':                 [15],
@@ -129,7 +130,7 @@ def main():
         'time_rejection_threshold': [5,10],
         'nirspec_mask_width':       [15],
     }
-    
+    """
 
     param_order = [
         'time_window',
@@ -141,11 +142,11 @@ def main():
     ]
 
     # counter for status update
-    count = 0
+    count = 1
     total_steps = sum(len(v) for v in param_ranges.values())
 
     # 4) initialize current best at medians
-    # this just makes sure to start with a median for the rest parameters fisrt sweeps
+    # this just makes sure to start with a median for the rest parameters 
     current = {p: int(np.median(param_ranges[p])) for p in param_order}
     current.update(w1=args.w1, w2=args.w2, w3=args.w3)
 
@@ -212,7 +213,7 @@ def main():
             trial_params[key] = trial
             J,  dt = evaluate_one(trial_params)
 
-            print(f"\n\n\n###########################################################\n Step: {count}/{total_steps}\n###########################################################\n\n\n")
+            print(f"\n\n\n###########################################################\n Step: {count}/{total_steps} completed\n###########################################################\n\n\n")
             count +=1 
             # log this trial
             logfile.write(
