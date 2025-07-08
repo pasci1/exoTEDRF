@@ -158,7 +158,7 @@ def main():
         result = run_stage1(
             [dm_slice],
             mode=cfg['observing_mode'],
-            baseline_ints=dm_slice.data.shape[0],
+            baseline_ints=dm_slice.data.shape[0]-1,
             save_results=False,
             skip_steps=skip_steps,
             **stage1_kwargs,
