@@ -63,37 +63,9 @@ def cost_function(dm, w1=1.0, w2=1.0, w3=1.0):
     # — Combine with weights —
     return w1 * frac_wl + w2 * frac_spec
 
-# ----------------------------------------
-# 2) Stage1 evaluation
-# ----------------------------------------
-def evaluate(cfg, dm_slice, params, skip_steps):
-    kwargs = dict(
-        rejection_threshold = params['thresh'],
-        time_rejection_threshold = params['time_rejection_threshold'],
-        nirspec_mask_width = params['nirspec_mask_width'],
-        **cfg['stage1_kwargs']
-    )
-    t0 = time.perf_counter()
-    result = run_stage1(
-        [dm_slice],
-        mode=cfg['observing_mode'],
-        baseline_ints=dm_slice.data.shape[0],
-        save_results=False,
-        skip_steps=skip_steps,
-        **kwargs
-    )
-    dt = time.perf_counter() - t0
-
-    # unwrap the output model
-    dm_out = result if isinstance(result, CubeModel) else result[0]
-    J = cost_function(dm_out, params['w1'], params['w2'], params['w3'])
-
-    # free memory
-    dm_out.close()
-    return J, dt
 
 # ----------------------------------------
-# 3) Main & coordinate‐descent
+# 2) Main & coordinate‐descent
 # ----------------------------------------
 def main():
     import argparse
@@ -231,16 +203,16 @@ def main():
                 f"{trial_params['time_rejection_threshold']}\t"
                 f"{trial_params['nirspec_mask_width']}\t"
                 f"{dt:.1f}\t"
-                f"{J:.0f}\n"
+                f"{J:.3f}\n"
             )
 
-            print(f"   {key}={trial} → J={J:.0f} ({dt:.1f}s)")
+            print(f"   {key}={trial} → J={J:.3f} ({dt:.1f}s)")
 
             if best_J is None or J < best_J:
                 best_J, best_val, best_dt = J, trial, dt
 
         current[key] = best_val
-        print(f"✔→ Best {key} = {best_val} (J={best_J:.0f}, dt={best_dt:.1f}s)")
+        print(f"✔→ Best {key} = {best_val} (J={best_J:.3f}, dt={best_dt:.1f}s)")
 
     logfile.close()
 
