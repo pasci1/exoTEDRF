@@ -1,176 +1,166 @@
 #!/usr/bin/env python3
-import os
+
 import time
-import argparse
 import numpy as np
+import argparse
 from astropy.stats import mad_std
-from jwst import datamodels
-from exotedrf.utils import parse_config
-from exotedrf.stage1 import run_stage1
-from exotedrf.stage2 import run_stage2
-from exotedrf.stage3 import run_stage3
+from scipy.signal import detrend
 
-# ----------------------------------------
-# 1) Cost‐function definitions
-# ----------------------------------------
-def compute_white_light(dm):
-    """Sum over all pixels to extract the white‐light curve."""
-    wl = dm.data.reshape(dm.data.shape[0], -1).sum(axis=1)
-    return wl
+from exotedrf.utils    import parse_config
+from exotedrf.stage1   import run_stage1
+from exotedrf.stage2   import run_stage2
+from exotedrf.stage3   import run_stage3
 
-def cost_function(dm, w1=1.0, w2=1.0):
-    """Robust fractional scatter of the white-light curve."""
-    wl = compute_white_light(dm)
-    frac = mad_std(wl) / np.abs(np.median(wl))
-    return w1 * frac + w2 * frac
+# ———————— 1) Cost function ——————————
+def compute_white_light_from_stage3(spectra):
+    """
+    spectra: dict returned by run_stage3, containing at least
+             'flux_o1' and/or 'flux_o2' arrays of shape (nints, nwave).
+    """
+    # sum over wavelength for each order
+    wl_orders = []
+    for key in ('flux_o1', 'flux_o2'):
+        if key in spectra:
+            # sum over columns → white light per integration
+            wl_orders.append(np.nansum(spectra[key], axis=1))
+    wl = np.sum(wl_orders, axis=0)
 
-# ----------------------------------------
-# 2) Main & coordinate‐descent
-# ----------------------------------------
+    # detrend and robust scatter
+    scat = mad_std(detrend(wl)) / np.abs(np.median(wl))
+    return scat
+
+def cost_function(stage1_res, stage2_res, stage3_res):
+    # we only use the Stage 3 white-light scatter
+    return compute_white_light_from_stage3(stage3_res)
+
+
+# ———————— 2) Main optimizer ——————————
 def main():
-    # 1) parse args & config
-    p = argparse.ArgumentParser(description="Optimize exoTEDRF Stages 1–3")
-    p.add_argument("--config", default="run_WASP39b.yaml",
-                   help="Path to your run_*.yaml")
-    p.add_argument("--w1", type=float, default=1.0)
-    p.add_argument("--w2", type=float, default=1.0)
+    p = argparse.ArgumentParser()
+    p.add_argument("--config",     default="run_DMS.yaml",
+                   help="Path to your DMS config")
+    p.add_argument("--instrument", required=True,
+                   choices=["NIRISS","NIRSPEC","MIRI"],
+                   help="Which JWST instrument")
     args = p.parse_args()
+
+    # load config
     cfg = parse_config(args.config)
 
-    # 2) load a short slice exactly as in optimize_stage1.py
-    seg = os.path.join(cfg['input_dir'],
-                       "jw01366003001_04101_00001-seg001_nrs1_uncal.fits")
-    dm_full = datamodels.open(seg)
-    K = min(60, dm_full.data.shape[0])
-    dm_slice = dm_full.copy()
-    dm_slice.data = dm_full.data[:K]
-    dm_slice.meta.exposure.integration_start = 1
-    dm_slice.meta.exposure.integration_end   = K
-    dm_slice.meta.exposure.nints            = K
-    dm_full.close()
-
-    # 3) Parameter ranges: only those you listed
+    # set up parameter grid
     param_ranges = {}
-    mode       = cfg['observing_mode'].upper()
-    instr      = mode.split('/')[0]
+    if args.instrument == "NIRISS":
+        param_ranges.update({
+            "soss_inner_mask_width": [20, 40, 80],
+            "soss_outer_mask_width": [35, 70,140],
+            "jump_threshold":        [5, 15, 30],
+            "time_jump_threshold":   [3, 10, 20],
+        })
+    elif args.instrument == "NIRSPEC":
+        param_ranges.update({
+            "nirspec_mask_width":   [8, 16, 32],
+            "jump_threshold":       [5, 15, 30],
+            "time_jump_threshold":  [3, 10, 20],
+        })
+    else:  # MIRI
+        param_ranges.update({
+            "miri_drop_groups":      [6, 12, 24],
+            "jump_threshold":        [5, 15, 30],
+            "time_jump_threshold":   [3, 10, 20],
+            "miri_trace_width":      [10, 20, 40],
+            "miri_background_width": [7, 14, 28],
+        })
 
-    # ── Stage 1 detector‐level params ───────────
-    if instr == 'NIRISS':
-        param_ranges['soss_inner_mask_width'] = [20, 40, 80]
-        param_ranges['soss_outer_mask_width'] = [35, 70,140]
-    if instr == 'NIRSPEC':
-        param_ranges['nirspec_mask_width']    = [8, 16, 32]
-    if instr == 'MIRI':
-        param_ranges['miri_drop_groups']      = [6, 12, 24]
+    # always sweep these
+    param_ranges.update({
+        "space_outlier_threshold": [5, 15, 30],
+        "time_outlier_threshold":  [3, 10, 20],
+        "pca_components":          [5, 10, 20],
+        "extract_width":           [15, 30, 60],
+    })
 
-    # common jump detection thresholds
-    param_ranges['jump_threshold']         = [5, 15, 30]
-    param_ranges['time_jump_threshold']    = [3, 10, 20]
-
-    # ── Stage 2 2D‐calib params ───────────
-    if instr == 'MIRI':
-        param_ranges['miri_trace_width']      = [10, 20, 40]
-        param_ranges['miri_background_width'] = [7, 14, 28]
-    param_ranges['space_outlier_threshold'] = [5, 15, 30]
-    param_ranges['time_outlier_threshold']  = [3, 10, 20]
-    param_ranges['pca_components']          = [5, 10, 20]
-
-    # ── Stage 3 1D‐extract params ──────────
-    param_ranges['extract_width']           = [15, 30, 60]
-
+    # fixed sweep order
     param_order = list(param_ranges.keys())
-    total_steps = sum(len(v) for v in param_ranges.values())
 
-    # 4) initialize current best at yaml defaults (or median if missing)
-    current = {}
-    for key, vals in param_ranges.items():
-        current[key] = cfg.get(key, int(np.median(vals)))
-    current.update(w1=args.w1, w2=args.w2)
+    # initialize to medians
+    current = {k: int(np.median(v)) for k, v in param_ranges.items()}
 
-    # 5) open log file
-    logfile = open("Cost_function_allstages.txt", "w")
-    logfile.write("\t".join(param_order + ['duration_s', 'J']) + "\n")
-
+    # prepare log
+    total = sum(len(v) for v in param_ranges.values())
     count = 1
-    best_J = None
+    logfile = open("Cost_function_V2.txt", "w")
+    logfile.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
-    # 6) coordinate‐descent
+    # coordinate‐descent
     for key in param_order:
-        print(f"\n→ Optimizing {key} ({count}/{len(param_order)})")
-        best_val = current[key]
-
+        best = (None, None)  # (best_cost, best_val)
         for trial in param_ranges[key]:
+            # build kwargs for each stage
             trial_params = current.copy()
             trial_params[key] = trial
 
-            # --- run one trial across all three stages ---
-            t0 = time.perf_counter()
-
             # Stage 1
-            res1 = run_stage1([dm_slice],
+            t0 = time.perf_counter()
+            st1 = run_stage1(
+                cfg['input_files'],
                 mode=cfg['observing_mode'],
-                baseline_ints=cfg['baseline_ints'],
+                rejection_threshold=trial_params.get("jump_threshold"),
+                time_rejection_threshold=trial_params.get("time_jump_threshold"),
+                nirspec_mask_width=trial_params.get("nirspec_mask_width", None),
+                soss_inner_mask_width=trial_params.get("soss_inner_mask_width", None),
+                soss_outer_mask_width=trial_params.get("soss_outer_mask_width", None),
+                miri_drop_groups=trial_params.get("miri_drop_groups", None),
                 save_results=False,
-                force_redo=cfg.get('force_redo', False),
-                skip_steps=[],  # use DMS defaults
-                flag_up_ramp=cfg.get('flag_up_ramp', False),
-                jump_threshold=trial_params.get('jump_threshold', cfg['jump_threshold']),
-                flag_in_time=cfg.get('flag_in_time', True),
-                time_rejection_threshold=trial_params.get('time_jump_threshold', cfg['time_jump_threshold']),
-                soss_inner_mask_width=trial_params.get('soss_inner_mask_width', cfg.get('soss_inner_mask_width')),
-                soss_outer_mask_width=trial_params.get('soss_outer_mask_width', cfg.get('soss_outer_mask_width')),
-                nirspec_mask_width=trial_params.get('nirspec_mask_width', cfg.get('nirspec_mask_width')),
-                miri_drop_groups=trial_params.get('miri_drop_groups', cfg.get('miri_drop_groups')),
-            )
-            dm1 = res1[0]
+                skip_steps=[],
+                **cfg.get('stage1_kwargs',{})
+            )  # :contentReference[oaicite:0]{index=0}
 
             # Stage 2
-            res2, cents = run_stage2(res1,
-                mode=cfg['observing_mode'],
-                baseline_ints=cfg['baseline_ints'],
+            st2, centroids = run_stage2(
+                st1, mode=cfg['observing_mode'],
+                space_thresh=trial_params["space_outlier_threshold"],
+                time_thresh=trial_params["time_outlier_threshold"],
+                pca_components=trial_params["pca_components"],
+                soss_inner_mask_width=trial_params.get("soss_inner_mask_width", None),
+                soss_outer_mask_width=trial_params.get("soss_outer_mask_width", None),
+                nirspec_mask_width=trial_params.get("nirspec_mask_width", None),
+                miri_trace_width=trial_params.get("miri_trace_width", None),
+                miri_background_width=trial_params.get("miri_background_width", None),
                 save_results=False,
-                force_redo=False,
                 skip_steps=[],
-                space_thresh = trial_params.get('space_outlier_threshold', cfg['space_outlier_threshold']),
-                time_thresh  = trial_params.get('time_outlier_threshold', cfg['time_outlier_threshold']),
-                pca_components=trial_params.get('pca_components', cfg['pca_components']),
-                miri_trace_width     = trial_params.get('miri_trace_width', cfg.get('miri_trace_width')),
-                miri_background_width= trial_params.get('miri_background_width', cfg.get('miri_background_width')),
-            )
+                **cfg.get('stage2_kwargs',{})
+            )  # :contentReference[oaicite:1]{index=1}
 
             # Stage 3
-            dm3 = run_stage3(res2,
+            st3 = run_stage3(
+                st2, centroids=centroids,
+                extract_width=trial_params["extract_width"],
                 save_results=False,
-                force_redo=False,
-                extract_method=cfg['extract_method'],
-                extract_width=trial_params.get('extract_width', cfg['extract_width']),
-                centroids=cents
-            )
+                skip_steps=[],
+                **cfg.get('stage3_kwargs',{})
+            )  # :contentReference[oaicite:2]{index=2}
 
             dt = time.perf_counter() - t0
-            J  = cost_function(dm1, args.w1, args.w2)
+            cost = cost_function(st1, st2, st3)
 
-            # log & print
-            row = [ str(trial_params[k]) for k in param_order ]
-            logfile.write("\t".join(row + [f"{dt:.1f}", f"{J:.6f}"]) + "\n")
-            print(f"   {key}={trial} → J={J:.6f} ({dt:.1f}s)")
+            # log
+            vals = [str(trial_params[k]) for k in param_order]
+            logfile.write("\t".join(vals + [f"{dt:.1f}", f"{cost:.6f}"]) + "\n")
 
-            if best_J is None or J < best_J:
-                best_J, best_val = J, trial
+            # check best
+            if best[0] is None or cost < best[0]:
+                best = (cost, trial)
 
-        current[key] = best_val
-        print(f"✔  → Best {key} = {best_val} (J={best_J:.6f})")
-        count += 1
+            print(f"[{count}/{total}] {key}={trial} → cost={cost:.6f} ({dt:.1f}s)")
+            count += 1
 
-    logfile.write("\n# Final optimized parameters:\n")
-    for k in param_order:
-        logfile.write(f"# {k} = {current[k]}\n")
-    logfile.write(f"# Final cost J = {best_J:.6f}\n")
+        # lock in best
+        current[key] = best[1]
+        print(f"✔ Best {key} = {best[1]} (cost={best[0]:.6f})\n")
+
     logfile.close()
-
-    print("\n=== FINAL OPTIMUM ===")
-    print("params =", {k: current[k] for k in param_order})
-    print("J =", best_J)
+    print("FINAL OPTIMUM:", current)
+    print("Log saved to Cost_function_V2.txt")
 
 if __name__ == "__main__":
     main()
