@@ -121,16 +121,21 @@ def main():
 
     
     # fast Check Params
-    """
+    
     param_ranges = {
-        'time_window':              [5],
-        'box_size':                 [15],
+        'time_window':              [5,7],
+        'box_size':                 [10,15],
         'thresh':                   [10,15],
         'rejection_threshold':      [10,15],
-        'time_rejection_threshold': [5,10],
+        'time_rejection_threshold': [10],
         'nirspec_mask_width':       [15],
     }
-    """
+
+    param_ranges = {
+        'time_window':              [5,71],
+        'box_size':                 [10,150],
+    }
+    
 
     param_order = [
         'time_window',
@@ -173,15 +178,20 @@ def main():
         t0 = time.perf_counter()
         baseline_ints = list(range(dm_slice.data.shape[0]))  # a list of all integration indices
 
+        #sanity check
+        print("→ about to call run_stage1 with jump_kwargs:", jump_kwargs)
+
+
         result = run_stage1(
             [dm_slice],
             mode=cfg['observing_mode'],
             baseline_ints=baseline_ints,
             save_results=False,
             skip_steps=skip_steps,
-            **stage1_kwargs,
-            **jump_kwargs
+            jump_kwargs=jump_kwargs,
+            **stage1_kwargs
         )
+
         dt = time.perf_counter() - t0
         dm_out = result[0]
         J = cost_function(dm_out, params['w1'], params['w2'], params['w3'])
@@ -257,7 +267,7 @@ def main():
     logfile.write("\n# Final optimized parameters:\n")
     for k in param_order:
         logfile.write(f"# {k} = {current[k]}\n")
-    logfile.write(f"# Final cost J = {best_J:.0f}\n")
+    logfile.write(f"# Final cost J = {best_J:.6f}\n")
     logfile.close()
 
 
