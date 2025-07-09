@@ -32,30 +32,30 @@ def cost_function(dm, w1=1.0, w2=1.0):
 # Main optimizer
 # ----------------------------------------
 def main():
+    import argparse
     p = argparse.ArgumentParser()
-    p.add_argument("--config", default="run_DMS.yaml")
-    p.add_argument("--w1", type=float, default=1.0)
-    p.add_argument("--w2", type=float, default=1.0)
+    p.add_argument("--config", default="run_WASP39b.yaml")
     args = p.parse_args()
 
-    # Parse pipeline config
-    cfg = parse_config(args.config)
+    # 1) read the YAML & record its folder
+    cfg     = parse_config(args.config)
     cfg_dir = os.path.dirname(args.config) or '.'
-    mode = cfg['observing_mode']  # e.g. 'NIRISS/SOSS', 'NIRSpec/G395H', 'MIRI/LRS'
-    instrument = mode.split('/')[0].upper()
 
-    # Prepare a short slice for speed
-    seg = os.path.join(cfg_dir,
-                        cfg['input_dir'],
-                        "jw01366003001_04101_00001-seg001_nrs1_uncal.fits")
+    # 2) pick off your slice file relative to the config
+    seg = os.path.join(
+        cfg_dir,
+        cfg['input_dir'],
+        "jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
+    )
 
+    # 3) load it
     dm_full = datamodels.open(seg)
-    K = min(60, dm_full.data.shape[0])
+    K       = min(60, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.integration_start = 1
-    dm_slice.meta.exposure.integration_end = K
-    dm_slice.meta.exposure.nints = K
+    dm_slice.meta.exposure.integration_end   = K
+    dm_slice.meta.exposure.nints            = K
     dm_full.close()
 
     # Define parameter ranges based on instrument
