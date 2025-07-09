@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import os
+import glob
 import time
 import argparse
 import numpy as np
@@ -15,24 +17,14 @@ from exotedrf.stage3      import run_stage3
 # 1) Cost function: robust fractional scatter of Stage 3 white-light
 # ————————————————————————————————————————————————————————
 def compute_white_light_scatter_from_stage3(spectra):
-    """
-    Sum over all spectral orders and pixels to make a 1D white-light curve,
-    detrend it, and return MAD-based fractional scatter.
-    """
     flux_keys = [k for k in spectra.keys() if k.startswith('flux')]
     if not flux_keys:
         raise RuntimeError("No 'flux_*' arrays found in Stage 3 output!")
-
-    # sum over wavelength → WL per order
     wl_orders = [np.nansum(spectra[k], axis=1) for k in flux_keys]
-    # sum across orders → single WL curve
     wl = np.sum(wl_orders, axis=0)
-
-    # detrend & compute robust scatter / median
     return mad_std(detrend(wl)) / np.abs(np.median(wl))
 
 def cost_function(stage3_res):
-    """Single cost: the fractional scatter of the extracted white-light curve."""
     return compute_white_light_scatter_from_stage3(stage3_res)
 
 
@@ -54,7 +46,7 @@ def main():
     )
     args = parser.parse_args()
 
-    # load config & discover segment files
+    # — load config & discover segment files —
     cfg = parse_config(args.config)
     input_files = unpack_input_dir(
         cfg['input_dir'],
@@ -62,10 +54,17 @@ def main():
         filetag         = cfg['input_filetag'],
         filter_detector = cfg['filter_detector']
     )
-    fancyprint(f"Found {len(input_files)} segments for "
-               f"{cfg['filter_detector']} / {cfg['observing_mode']}")
+    if len(input_files) == 0:
+        fancyprint(f"[WARN] `unpack_input_dir` found ZERO files in {cfg['input_dir']}.")
+        fancyprint("       Falling back to glob on '*.fits' in that directory.")
+        input_files = sorted(glob.glob(os.path.join(cfg['input_dir'], "*.fits")))
 
-    # build parameter grid
+    if len(input_files) == 0:
+        raise RuntimeError(f"No FITS files found in {cfg['input_dir']}!")
+
+    fancyprint(f"Using {len(input_files)} segment(s) from {cfg['input_dir']}")
+
+    # — build parameter grid —
     param_ranges = {}
     if args.instrument == "NIRISS":
         param_ranges.update({
@@ -97,22 +96,22 @@ def main():
         "extract_width":           [15, 30, 60],
     })
 
-    # fixed sweep order
+    # sweep in a fixed order
     param_order = list(param_ranges.keys())
 
-    # start from median of each range
+    # start at the median of each range
     current = {k: int(np.median(v)) for k, v in param_ranges.items()}
 
-    # prepare logfile
+    # prepare the log
     total_steps = sum(len(v) for v in param_ranges.values())
     count = 1
     logf = open("Cost_function_V2.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
-    # coordinate-descent
+    # coordinate‐descent
     for key in param_order:
         best_cost, best_val = None, current[key]
-        fancyprint(f"→ Optimizing {key} (others fixed at "
+        fancyprint(f"\n→ Optimizing {key} (others fixed at "
                    f"{ {k:current[k] for k in current if k!=key} })")
 
         for trial in param_ranges[key]:
@@ -140,14 +139,14 @@ def main():
                 st1,
                 mode=cfg['observing_mode'],
                 save_results=False, skip_steps=[],
-                space_thresh           = trial_params["space_outlier_threshold"],
-                time_thresh            = trial_params["time_outlier_threshold"],
-                pca_components         = trial_params["pca_components"],
-                soss_inner_mask_width  = trial_params.get("soss_inner_mask_width"),
-                soss_outer_mask_width  = trial_params.get("soss_outer_mask_width"),
-                nirspec_mask_width     = trial_params.get("nirspec_mask_width"),
-                miri_trace_width       = trial_params.get("miri_trace_width"),
-                miri_background_width  = trial_params.get("miri_background_width"),
+                space_thresh             = trial_params["space_outlier_threshold"],
+                time_thresh              = trial_params["time_outlier_threshold"],
+                pca_components           = trial_params["pca_components"],
+                soss_inner_mask_width    = trial_params.get("soss_inner_mask_width"),
+                soss_outer_mask_width    = trial_params.get("soss_outer_mask_width"),
+                nirspec_mask_width       = trial_params.get("nirspec_mask_width"),
+                miri_trace_width         = trial_params.get("miri_trace_width"),
+                miri_background_width    = trial_params.get("miri_background_width"),
                 **cfg.get('stage2_kwargs', {})
             )
 
@@ -163,7 +162,7 @@ def main():
             dt   = time.perf_counter() - t0
             cost = cost_function(st3)
 
-            # log
+            # log this trial
             vals = [str(trial_params[k]) for k in param_order]
             logf.write("\t".join(vals + [f"{dt:.1f}", f"{cost:.6f}"]) + "\n")
 
@@ -175,12 +174,11 @@ def main():
                   f"cost={cost:.6f} ({dt:.1f}s)")
             count += 1
 
-        # lock in best for this key
         current[key] = best_val
         fancyprint(f"✔ Best {key} = {best_val} (cost={best_cost:.6f})")
 
     logf.close()
-    fancyprint("=== FINAL OPTIMUM ===")
+    fancyprint("\n=== FINAL OPTIMUM ===")
     fancyprint(current)
     fancyprint("Log saved to Cost_function_V2.txt")
 
