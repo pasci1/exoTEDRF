@@ -52,7 +52,7 @@ def main():
     dm_slice.meta.exposure.integration_start = 1
     dm_slice.meta.exposure.integration_end = K
     dm_slice.meta.exposure.nints = K
-    dm_full.close()
+    dm_full.close() 
 
     # Define parameter ranges based on instrument
     param_ranges = {}
