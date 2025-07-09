@@ -158,44 +158,49 @@ def main():
     skip_steps = [] 
 
     def evaluate_one(params):
-
-        # DEBUG ???
         print("Running with params:", params)
 
-
-
-        # build kwargs
-        stage1_kwargs = dict(
-            rejection_threshold        = params['rejection_threshold'],
-            time_rejection_threshold   = params['time_rejection_threshold'],
-            nirspec_mask_width         = params['nirspec_mask_width'],
-            **cfg['stage1_kwargs']
-        )
-        jump_kwargs = {
-            'window':   params['time_window'],
-            'box_size': params['box_size'],
+        # ─── Build a per‐step kwargs dict ─────────────────────────────────────────
+        step_kwargs = {
+            # 1) DQInitStep: custom hot‐pixel flagging (box‐size & σ‐threshold)
+            'DQInitStep': {
+                'box_size': params['box_size'],
+                'thresh':   params['thresh'],
+            },
+            # 2) JumpStep: both up‐the‐ramp and time-domain thresholds + window
+            'JumpStep': {
+                'rejection_threshold':      params['rejection_threshold'],      # up‐the‐ramp σ‐cut
+                'time_rejection_threshold': params['time_rejection_threshold'], # time‐domain σ‐cut
+                'time_window':              params['time_window'],              # time‐domain window
+            },
+            # 3) OneOverFStep: NIRSpec mask width
+            'OneOverFStep': {
+                'nirspec_mask_width': params['nirspec_mask_width'],
+            }
         }
+
+        # 4) Merge in any other default Stage 1 kwargs from your YAML
+        step_kwargs.update(cfg['stage1_kwargs'])
+
+        # ─── Run the pipeline ────────────────────────────────────────────────────
         t0 = time.perf_counter()
-        baseline_ints = list(range(dm_slice.data.shape[0]))  # a list of all integration indices
+        baseline_ints = list(range(dm_slice.data.shape[0]))   # [0,1,…,K–1]
 
-        #sanity check
-        print("→ about to call run_stage1 with jump_kwargs:", jump_kwargs)
-
-
-        result = run_stage1(
+        results = run_stage1(
             [dm_slice],
             mode=cfg['observing_mode'],
             baseline_ints=baseline_ints,
             save_results=False,
             skip_steps=skip_steps,
-            jump_kwargs=jump_kwargs,
-            **stage1_kwargs
+            **step_kwargs
         )
-
         dt = time.perf_counter() - t0
-        dm_out = result[0]
+
+        # ─── Score the output cube ───────────────────────────────────────────────
+        dm_out = results[0]
         J = cost_function(dm_out, params['w1'], params['w2'], params['w3'])
         return J, dt
+
 
     # 5) open log file (TSV) and write header
     logfile = open("Cost_function.txt", "w")
