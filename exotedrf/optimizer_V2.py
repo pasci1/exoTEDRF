@@ -19,19 +19,17 @@ def compute_white_light_scatter_from_stage3(spectra):
     Sum over all spectral orders and pixels to make a 1D white-light curve,
     detrend it, and return MAD-based fractional scatter.
     """
-    # gather any flux arrays (e.g. 'flux_o1', 'flux_o2', etc.)
     flux_keys = [k for k in spectra.keys() if k.startswith('flux')]
     if not flux_keys:
         raise RuntimeError("No 'flux_*' arrays found in Stage 3 output!")
 
-    # sum over wavelength → one white-light time-series per order
+    # sum over wavelength → WL per order
     wl_orders = [np.nansum(spectra[k], axis=1) for k in flux_keys]
-    # then sum across orders → single WL curve of shape (nints,)
+    # sum across orders → single WL curve
     wl = np.sum(wl_orders, axis=0)
 
-    # detrend and compute robust scatter / median
+    # detrend & compute robust scatter / median
     return mad_std(detrend(wl)) / np.abs(np.median(wl))
-
 
 def cost_function(stage3_res):
     """Single cost: the fractional scatter of the extracted white-light curve."""
@@ -56,7 +54,7 @@ def main():
     )
     args = parser.parse_args()
 
-    # — load config & discover all segment files —
+    # load config & discover segment files
     cfg = parse_config(args.config)
     input_files = unpack_input_dir(
         cfg['input_dir'],
@@ -67,7 +65,7 @@ def main():
     fancyprint(f"Found {len(input_files)} segments for "
                f"{cfg['filter_detector']} / {cfg['observing_mode']}")
 
-    # — build parameter grid —
+    # build parameter grid
     param_ranges = {}
     if args.instrument == "NIRISS":
         param_ranges.update({
@@ -102,7 +100,7 @@ def main():
     # fixed sweep order
     param_order = list(param_ranges.keys())
 
-    # start from the median of each range
+    # start from median of each range
     current = {k: int(np.median(v)) for k, v in param_ranges.items()}
 
     # prepare logfile
@@ -114,7 +112,8 @@ def main():
     # coordinate-descent
     for key in param_order:
         best_cost, best_val = None, current[key]
-        fancyprint(f"→ Optimizing {key} (others fixed at { {k:current[k] for k in current if k!=key} })")
+        fancyprint(f"→ Optimizing {key} (others fixed at "
+                   f"{ {k:current[k] for k in current if k!=key} })")
 
         for trial in param_ranges[key]:
             trial_params = current.copy()
@@ -122,7 +121,7 @@ def main():
 
             t0 = time.perf_counter()
 
-            # — Stage 1 —
+            # Stage 1
             st1 = run_stage1(
                 input_files,
                 mode=cfg['observing_mode'],
@@ -136,7 +135,7 @@ def main():
                 **cfg.get('stage1_kwargs', {})
             )
 
-            # — Stage 2 —
+            # Stage 2
             st2, centroids = run_stage2(
                 st1,
                 mode=cfg['observing_mode'],
@@ -152,7 +151,7 @@ def main():
                 **cfg.get('stage2_kwargs', {})
             )
 
-            # — Stage 3 —
+            # Stage 3
             st3 = run_stage3(
                 st2,
                 centroids=centroids,
@@ -164,19 +163,21 @@ def main():
             dt   = time.perf_counter() - t0
             cost = cost_function(st3)
 
-            # log this trial
+            # log
             vals = [str(trial_params[k]) for k in param_order]
             logf.write("\t".join(vals + [f"{dt:.1f}", f"{cost:.6f}"]) + "\n")
 
-            # track best
+            # update best
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
 
-            print(f"[{count}/{total_steps}] {key}={trial} → cost={cost:.6f} ({dt:.1f}s)")
+            print(f"[{count}/{total_steps}] {key}={trial} → "
+                  f"cost={cost:.6f} ({dt:.1f}s)")
             count += 1
 
+        # lock in best for this key
         current[key] = best_val
-        fancyprint(f"✔ Best {key} = {best_val}  (cost={best_cost:.6f})")
+        fancyprint(f"✔ Best {key} = {best_val} (cost={best_cost:.6f})")
 
     logf.close()
     fancyprint("=== FINAL OPTIMUM ===")
