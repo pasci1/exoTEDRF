@@ -160,39 +160,23 @@ def main():
     def evaluate_one(params):
         print("Running with params:", params)
 
-        # ─── Pull in any per-step defaults from your YAML ────────────────────────
-        config_kwargs = cfg.get('stage1_kwargs', {})
-
-        # ─── Build a dict of kwargs for each Stage 1 step ───────────────────────
-        step_kwargs = {}
-
-        # 1) DQInitStep  (for hot-pixel box_size & thresh)
-        dq_defaults = config_kwargs.get('DQInitStep', {})
-        step_kwargs['DQInitStep'] = {
-            **dq_defaults,
-            'box_size': params['box_size'],
-            'thresh':   params['thresh'],
-        }
-
-        # 2) JumpStep  (up-the-ramp & time-domain jump thresholds + window)
-        js_defaults = config_kwargs.get('JumpStep', {})
-        step_kwargs['JumpStep'] = {
-            **js_defaults,
-            'rejection_threshold':      params['rejection_threshold'],
+        # ─── Build the kwargs that run_stage1 actually knows ────────────────────
+        run_kwargs = {
+            # Up-the-ramp sigma threshold
+            'rejection_threshold':      params['thresh'],
+            # Time-domain sigma threshold
             'time_rejection_threshold': params['time_rejection_threshold'],
-            'time_window':              params['time_window'],
+            # NIRSpec mask width for the OneOverFStep
+            'nirspec_mask_width':       params['nirspec_mask_width'],
+            # Everything else (time_window) goes under the JumpStep sub-dict:
+            'JumpStep': {
+                'time_window': params['time_window']
+            }
         }
 
-        # 3) OneOverFStep  (NIRSpec mask width)
-        oof_defaults = config_kwargs.get('OneOverFStep', {})
-        step_kwargs['OneOverFStep'] = {
-            **oof_defaults,
-            'nirspec_mask_width': params['nirspec_mask_width'],
-        }
-
-        # ─── Call Stage 1 ────────────────────────────────────────────────────
+        # ─── Time it & run Stage 1 ─────────────────────────────────────────────
         t0 = time.perf_counter()
-        baseline_ints = list(range(dm_slice.data.shape[0]))   # [0,1,…,K–1]
+        baseline_ints = list(range(dm_slice.data.shape[0]))  # [0…K-1]
 
         results = run_stage1(
             [dm_slice],
@@ -200,11 +184,11 @@ def main():
             baseline_ints=baseline_ints,
             save_results=False,
             skip_steps=skip_steps,
-            **step_kwargs
+            **run_kwargs
         )
         dt = time.perf_counter() - t0
 
-        # ─── Score & return ────────────────────────────────────────────────
+        # ─── Score it ─────────────────────────────────────────────────────────
         dm_out = results[0]
         J = cost_function(dm_out, params['w1'], params['w2'], params['w3'])
         return J, dt
