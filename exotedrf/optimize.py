@@ -123,10 +123,10 @@ def main():
     # fast Check Params
     
     param_ranges = {
-        'time_window':              [5,7],
-        'box_size':                 [10,15],
-        'thresh':                   [10,15],
-        'rejection_threshold':      [10,15],
+        'time_window':              [5,71],
+        'box_size':                 [10,150],
+        'thresh':                   [10],
+        'rejection_threshold':      [10],
         'time_rejection_threshold': [10],
         'nirspec_mask_width':       [15],
     }
@@ -143,16 +143,6 @@ def main():
         'nirspec_mask_width',
     ]
 
-
-    param_ranges = {
-        'time_window':              [5,71],
-        'box_size':                 [10,150],
-    }
-
-    param_order = [
-        'time_window',
-        'box_size',
-    ]
 
 
 
