@@ -131,10 +131,7 @@ def main():
         'nirspec_mask_width':       [15],
     }
 
-    param_ranges = {
-        'time_window':              [5,71],
-        'box_size':                 [10,150],
-    }
+
     
 
     param_order = [
@@ -145,6 +142,19 @@ def main():
         'time_rejection_threshold',
         'nirspec_mask_width',
     ]
+
+
+    param_ranges = {
+        'time_window':              [5,71],
+        'box_size':                 [10,150],
+    }
+
+        param_order = [
+        'time_window',
+        'box_size',
+    ]
+
+
 
     # counter for status update
     count = 1
