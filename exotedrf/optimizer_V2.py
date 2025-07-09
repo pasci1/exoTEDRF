@@ -6,7 +6,9 @@ import numpy as np
 from astropy.stats import mad_std
 from scipy.signal import detrend
 
-from exotedrf.utils  import parse_config, unpack_files
+from exotedrf.utils       import parse_config
+from exotedrf.run_DMS     import unpack_files
+
 from exotedrf.stage1 import run_stage1
 from exotedrf.stage2 import run_stage2
 from exotedrf.stage3 import run_stage3
