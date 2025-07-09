@@ -126,7 +126,7 @@ def main():
         'time_window':              [3,5,7,9,11],
         'box_size':                 [10],
         'thresh':                   [10],
-        'rejection_threshold':      [10],
+        'rejection_threshold':      [10], 
         'time_rejection_threshold': [2,4,6,8,10],
         'nirspec_mask_width':       [10,12,14,16,18,20],
     }
