@@ -13,6 +13,8 @@ from exotedrf.stage2 import run_stage2
 from exotedrf.stage3 import run_stage3
 from astropy.stats import mad_std
 from scipy.signal import detrend
+import os
+
 
 # ----------------------------------------
 # Cost function (white-light robust scatter)
