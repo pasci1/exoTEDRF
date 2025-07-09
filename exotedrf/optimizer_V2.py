@@ -40,11 +40,15 @@ def main():
 
     # Parse pipeline config
     cfg = parse_config(args.config)
+    cfg_dir = os.path.dirname(args.config) or '.'
     mode = cfg['observing_mode']  # e.g. 'NIRISS/SOSS', 'NIRSpec/G395H', 'MIRI/LRS'
     instrument = mode.split('/')[0].upper()
 
     # Prepare a short slice for speed
-    seg = cfg['input_dir'] + "/" + cfg['input_dir'].split('/')[-1] + "_seg001_uncal.fits"
+    seg = os.path.join(cfg_dir,
+                        cfg['input_dir'],
+                        "jw01366003001_04101_00001-seg001_nrs1_uncal.fits")
+
     dm_full = datamodels.open(seg)
     K = min(60, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
@@ -52,7 +56,7 @@ def main():
     dm_slice.meta.exposure.integration_start = 1
     dm_slice.meta.exposure.integration_end = K
     dm_slice.meta.exposure.nints = K
-    dm_full.close() 
+    dm_full.close()
 
     # Define parameter ranges based on instrument
     param_ranges = {}
@@ -148,7 +152,7 @@ def main():
     count = 1
     best_J = None
     for key in param_order:
-        print(f"\n→ Optimizing {key} ({count}/{total_steps})")
+        print(f"\n\n#####################\nOptimizing {key} ({count}/{total_steps}) completed\n#####################\n\n")
         best_val = current[key]
         for trial in param_ranges[key]:
             trial_params = current.copy()
