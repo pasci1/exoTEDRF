@@ -125,10 +125,10 @@ def main():
     param_ranges = {
         'time_window':              [5,71],
         'box_size':                 [10,150],
-        'thresh':                   [10],
-        'rejection_threshold':      [10],
-        'time_rejection_threshold': [10],
-        'nirspec_mask_width':       [15],
+        'thresh':                   [10,100],
+        'rejection_threshold':      [1,10],
+        'time_rejection_threshold': [1,10],
+        'nirspec_mask_width':       [1,15],
     }
 
 
@@ -156,33 +156,41 @@ def main():
     current.update(w1=args.w1, w2=args.w2, w3=args.w3)
 
     skip_steps = []  
-
+ 
     def evaluate_one(params):
         print("Running with params:", params)
 
-        # ─── Build a per‐step kwargs dict ─────────────────────────────────────────
-        step_kwargs = {
-            # 1) DQInitStep: custom hot‐pixel flagging (box‐size & σ‐threshold)
-            'DQInitStep': {
-                'box_size': params['box_size'],
-                'thresh':   params['thresh'],
-            },
-            # 2) JumpStep: both up‐the‐ramp and time-domain thresholds + window
-            'JumpStep': {
-                'rejection_threshold':      params['rejection_threshold'],      # up‐the‐ramp σ‐cut
-                'time_rejection_threshold': params['time_rejection_threshold'], # time‐domain σ‐cut
-                'time_window':              params['time_window'],              # time‐domain window
-            },
-            # 3) OneOverFStep: NIRSpec mask width
-            'OneOverFStep': {
-                'nirspec_mask_width': params['nirspec_mask_width'],
-            }
+        # ─── Pull in any per-step defaults from your YAML ────────────────────────
+        config_kwargs = cfg.get('stage1_kwargs', {})
+
+        # ─── Build a dict of kwargs for each Stage 1 step ───────────────────────
+        step_kwargs = {}
+
+        # 1) DQInitStep  (for hot-pixel box_size & thresh)
+        dq_defaults = config_kwargs.get('DQInitStep', {})
+        step_kwargs['DQInitStep'] = {
+            **dq_defaults,
+            'box_size': params['box_size'],
+            'thresh':   params['thresh'],
         }
 
-        # 4) Merge in any other default Stage 1 kwargs from your YAML
-        step_kwargs.update(cfg['stage1_kwargs'])
+        # 2) JumpStep  (up-the-ramp & time-domain jump thresholds + window)
+        js_defaults = config_kwargs.get('JumpStep', {})
+        step_kwargs['JumpStep'] = {
+            **js_defaults,
+            'rejection_threshold':      params['rejection_threshold'],
+            'time_rejection_threshold': params['time_rejection_threshold'],
+            'time_window':              params['time_window'],
+        }
 
-        # ─── Run the pipeline ────────────────────────────────────────────────────
+        # 3) OneOverFStep  (NIRSpec mask width)
+        oof_defaults = config_kwargs.get('OneOverFStep', {})
+        step_kwargs['OneOverFStep'] = {
+            **oof_defaults,
+            'nirspec_mask_width': params['nirspec_mask_width'],
+        }
+
+        # ─── Call Stage 1 ────────────────────────────────────────────────────
         t0 = time.perf_counter()
         baseline_ints = list(range(dm_slice.data.shape[0]))   # [0,1,…,K–1]
 
@@ -196,7 +204,7 @@ def main():
         )
         dt = time.perf_counter() - t0
 
-        # ─── Score the output cube ───────────────────────────────────────────────
+        # ─── Score & return ────────────────────────────────────────────────
         dm_out = results[0]
         J = cost_function(dm_out, params['w1'], params['w2'], params['w3'])
         return J, dt
