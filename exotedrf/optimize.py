@@ -149,7 +149,7 @@ def main():
         'box_size':                 [10,150],
     }
 
-        param_order = [
+    param_order = [
         'time_window',
         'box_size',
     ]
