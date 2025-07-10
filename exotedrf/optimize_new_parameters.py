@@ -162,15 +162,14 @@ def main():
     # 5) open log file (TSV) and write header
     logfile = open("Cost_function.txt", "w")
     logfile.write(
-        "time_window	"
-        "box_size	"
-        "jump_threshold	"
-        "rejection_threshold	"
-        "time_jump_threshold	"
-        "nirspec_mask_width	"
-        "duration_s	"
-        "J
-"
+        "time_window\t"
+        "box_size\t"
+        "jump_threshold\t"
+        "rejection_threshold\t"
+        "time_jump_threshold\t"
+        "nirspec_mask_width\t"
+        "duration_s\t"
+        "J\n"
     )
 
     # 6) coordinate‐descent
