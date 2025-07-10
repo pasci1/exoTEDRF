@@ -6,8 +6,6 @@ import time
 import argparse
 import numpy as np
 import pandas as pd
-from astropy.stats import mad_std
-from scipy.signal import detrend
 from jwst import datamodels
 
 from exotedrf.utils       import parse_config, unpack_input_dir, fancyprint
@@ -139,9 +137,9 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            "nirspec_mask_width": [8, 10],
-            "jump_threshold": [5],
-            "time_jump_threshold": [10],
+            "nirspec_mask_width": [8, 16, 32],
+            "jump_threshold": [5, 15, 30],
+            "time_jump_threshold": [3, 10, 20],
         })
     else:
         param_ranges.update({
@@ -152,10 +150,10 @@ def main():
             "miri_background_width": [7, 14, 28],
         })
     param_ranges.update({
-        "space_outlier_threshold": [5, 15],
-        "time_outlier_threshold": [3],
-        "pca_components": [10],
-        "extract_width": [15],
+        "space_outlier_threshold": [5, 15, 30],
+        "time_outlier_threshold": [3, 10, 20],
+        "pca_components": [5, 10, 20],
+        "extract_width": [15, 30, 60],
     })
 
     param_order = list(param_ranges.keys())
@@ -193,23 +191,22 @@ def main():
                 mode=cfg['observing_mode'],
                 baseline_ints=baseline_ints,
                 save_results=False, skip_steps=[],
-                rejection_threshold=trial_params.get("jump_threshold"),
-                time_rejection_threshold=trial_params.get("time_jump_threshold"),
+                jump_threshold=trial_params.get("jump_threshold"),
+                time_jump_threshold=trial_params.get("time_jump_threshold"),
                 soss_inner_mask_width=trial_params.get("soss_inner_mask_width"),
                 soss_outer_mask_width=trial_params.get("soss_outer_mask_width"),
                 nirspec_mask_width=trial_params.get("nirspec_mask_width"),
                 miri_drop_groups=trial_params.get("miri_drop_groups"),
                 **cfg.get('stage1_kwargs', {})
             )
-            # skip heavy steps
             st2, centroids = run_stage2(
                 st1,
                 baseline_ints=baseline_ints,
                 mode=cfg['observing_mode'],
                 save_results=False,
                 skip_steps=['BadPixStep', 'PCAReconstructStep'],
-                space_thresh=trial_params["space_outlier_threshold"],
-                time_thresh=trial_params["time_outlier_threshold"],
+                space_outlier_threshold=trial_params["space_outlier_threshold"],
+                time_outlier_threshold=trial_params["time_outlier_threshold"],
                 pca_components=trial_params["pca_components"],
                 soss_inner_mask_width=trial_params.get("soss_inner_mask_width"),
                 soss_outer_mask_width=trial_params.get("soss_outer_mask_width"),
@@ -218,7 +215,6 @@ def main():
                 miri_background_width=trial_params.get("miri_background_width"),
                 **cfg.get('stage2_kwargs', {})
             )
-            # ensure centroids is a DataFrame
             if isinstance(centroids, np.ndarray):
                 centroids = pd.DataFrame(centroids.T, columns=['xpos','ypos'])
 
@@ -230,7 +226,6 @@ def main():
                 **cfg.get('stage3_kwargs', {})
             )
 
-            # unwrap dict returned by run_stage3 if necessary
             if isinstance(st3, dict):
                 st3_model = next(iter(st3.values()))
             else:
@@ -263,6 +258,7 @@ def main():
     fancyprint(current)
     fancyprint("Log saved to Cost_function_V2.txt")
 
+    # ─── STOP GLOBAL TIMER & PRINT TOTAL ────────────────────────────────
     t1_total = time.perf_counter()
     total = t1_total - t0_total
     h = int(total) // 3600

@@ -21,33 +21,33 @@ from exotedrf.stage3      import run_stage3
 
 def compute_white_light(dm):
     """
-    Extract the white-light curve (sum over all pixels) from a CubeModel-like dm.
+    Extract the white-light curve (sum over all pixels) from a CubeModel-like dm,
+    ignoring any NaNs.
     """
-    # ensure data is a numpy array (dm.data may be a memoryview)
-    data = np.asarray(dm.data)
-    # reshape to [time, pixels] and sum over pixels
-    return data.reshape(data.shape[0], -1).sum(axis=1)
+    data = np.asarray(dm.data, dtype=float)
+    # sum over pixels, skipping NaNs
+    wl = np.nansum(data.reshape(data.shape[0], -1), axis=1)
+    return wl
 
 
 def compute_spectral(dm):
     """
-    Extract a spectral lightcurve: mean over wavelength for each integration.
-    Supports 3D cube (time, rows, cols), 2D output (time, spectral channels),
+    Extract a toy spectral lightcurve: mean over spatial axis for each integration,
+    ignoring NaNs. Supports 3D cube (time, rows, cols), 2D output (time, channels),
     and 1D spectra (time,).
     """
-    # get raw data array
     raw = dm.data if hasattr(dm, 'data') else dm
-    data = np.asarray(raw)
+    data = np.asarray(raw, dtype=float)
 
-    # full cube: reshape and average over spatial axis
     if data.ndim == 3:
+        # time x spatial x spatial -> time x spectral_channels
         reshaped = data.reshape(data.shape[0], data.shape[1], -1)
-        spec = reshaped.mean(axis=2)
-    # 2D spectral lightcurve: time x wavelength
+        spec = np.nanmean(reshaped, axis=2)
     elif data.ndim == 2:
-        spec = data
-    # 1D spectral output: single spectral channel per integration
+        # already time x spectral
+        spec = np.asarray(data, dtype=float)
     elif data.ndim == 1:
+        # single channel per time
         spec = data.reshape(-1, 1)
     else:
         raise ValueError(f"Unexpected data dimensions {data.ndim} in compute_spectral")
@@ -57,17 +57,24 @@ def compute_spectral(dm):
 def cost_function(dm, w1=0.5, w2=0.5):
     """
     Weighted sum of:
-      1) white-light fractional scatter
+      1) white-light fractional scatter (std/median)
       2) mean fractional scatter across spectral channels
+    Uses nan-aware statistics to avoid NaNs propagating.
     """
     wl = compute_white_light(dm)
     spec = compute_spectral(dm)
 
-    frac_wl = mad_std(wl) / abs(np.median(wl))
-    frac_spec = np.mean([
-        mad_std(spec[:, i]) / abs(np.median(spec[:, i]))
-        for i in range(spec.shape[1])
-    ])
+    # compute fractional scatter, ignoring NaNs
+    median_wl = np.nanmedian(wl)
+    frac_wl = np.nanstd(wl) / abs(median_wl)
+
+    frac_specs = []
+    for i in range(spec.shape[1]):
+        channel = spec[:, i]
+        median_ch = np.nanmedian(channel)
+        frac_specs.append(np.nanstd(channel) / abs(median_ch))
+    frac_spec = np.nanmean(frac_specs)
+
     return w1 * frac_wl + w2 * frac_spec
 
 # ————————————————————————————————————————————————————————
@@ -88,6 +95,9 @@ def main():
         help="Which instrument to optimize"
     )
     args = parser.parse_args()
+
+    # start global timer
+    t0_total = time.perf_counter()
 
     # load config & discover segment files
     cfg = parse_config(args.config)
@@ -129,9 +139,9 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            "nirspec_mask_width": [8, 16, 32],
-            "jump_threshold": [5, 15, 30],
-            "time_jump_threshold": [3, 10, 20],
+            "nirspec_mask_width": [8, 10],
+            "jump_threshold": [5],
+            "time_jump_threshold": [10],
         })
     else:
         param_ranges.update({
@@ -142,10 +152,10 @@ def main():
             "miri_background_width": [7, 14, 28],
         })
     param_ranges.update({
-        "space_outlier_threshold": [5, 15, 30],
-        "time_outlier_threshold": [3, 10, 20],
-        "pca_components": [5, 10, 20],
-        "extract_width": [15, 30, 60],
+        "space_outlier_threshold": [5, 15],
+        "time_outlier_threshold": [3],
+        "pca_components": [10],
+        "extract_width": [15],
     })
 
     param_order = list(param_ranges.keys())
@@ -252,6 +262,14 @@ def main():
     fancyprint("\n=== FINAL OPTIMUM ===\n")
     fancyprint(current)
     fancyprint("Log saved to Cost_function_V2.txt")
+
+    t1_total = time.perf_counter()
+    total = t1_total - t0_total
+    h = int(total) // 3600
+    m = (int(total) % 3600) // 60
+    s = total % 60
+    print(f"TOTAL optimization runtime: {h}h {m:02d}min {s:04.1f}s")
+    # ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     main()
