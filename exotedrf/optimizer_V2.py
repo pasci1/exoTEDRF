@@ -23,14 +23,19 @@ def compute_white_light(dm):
     """
     Extract the white-light curve (sum over all pixels) from a CubeModel-like dm.
     """
-    return dm.data.reshape(dm.data.shape[0], -1).sum(axis=1)
+    # ensure data is a numpy array (dm.data may be a memoryview)
+    data = np.asarray(dm.data)
+    # reshape to [time, pixels] and sum over pixels
+    return data.reshape(data.shape[0], -1).sum(axis=1)
 
 
 def compute_spectral(dm):
     """
     Extract a toy spectral lightcurve: mean over wavelength for each detector row.
     """
-    spec = dm.data.reshape(dm.data.shape[0], dm.data.shape[1], -1)
+    data = np.asarray(dm.data)
+    # reshape to [time, rows, columns] and average over columns
+    spec = data.reshape(data.shape[0], data.shape[1], -1)
     return spec.mean(axis=2)
 
 
@@ -49,7 +54,6 @@ def cost_function(dm, w1=0.5, w2=0.5):
         for i in range(spec.shape[1])
     ])
     return w1 * frac_wl + w2 * frac_spec
-
 
 # ————————————————————————————————————————————————————————
 # 2) Main optimizer
@@ -172,7 +176,7 @@ def main():
                 miri_drop_groups=trial_params.get("miri_drop_groups"),
                 **cfg.get('stage1_kwargs', {})
             )
-            # skip heavy BadPixStep and PCA to avoid long hangs or errors
+            # skip heavy steps
             st2, centroids = run_stage2(
                 st1,
                 baseline_ints=baseline_ints,
@@ -189,7 +193,7 @@ def main():
                 miri_background_width=trial_params.get("miri_background_width"),
                 **cfg.get('stage2_kwargs', {})
             )
-            # ensure centroids is a DataFrame with xpos/ypos
+            # ensure centroids is a DataFrame
             if isinstance(centroids, np.ndarray):
                 centroids = pd.DataFrame(centroids.T, columns=['xpos','ypos'])
 
@@ -203,7 +207,6 @@ def main():
 
             # unwrap dict returned by run_stage3 if necessary
             if isinstance(st3, dict):
-                # assume the first entry is the primary DataModel
                 st3_model = next(iter(st3.values()))
             else:
                 st3_model = st3
