@@ -137,9 +137,9 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            "nirspec_mask_width": [8, 16, 32],
-            "jump_threshold": [5, 15, 30],
-            "time_jump_threshold": [3, 10, 20],
+            "nirspec_mask_width": [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32],
+            "jump_threshold": [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32],
+            "time_jump_threshold": [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32],
         })
     else:
         param_ranges.update({
@@ -150,10 +150,10 @@ def main():
             "miri_background_width": [7, 14, 28],
         })
     param_ranges.update({
-        "space_outlier_threshold": [5, 15, 30],
-        "time_outlier_threshold": [3, 10, 20],
-        "pca_components": [5, 10, 20],
-        "extract_width": [15, 30, 60],
+        "space_outlier_threshold": [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32],
+        "time_outlier_threshold": [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32],
+        "pca_components": [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32],
+        "extract_width": [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60],
     })
 
     param_order = list(param_ranges.keys())
