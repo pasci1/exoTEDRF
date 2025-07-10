@@ -32,16 +32,23 @@ def compute_white_light(dm):
 def compute_spectral(dm):
     """
     Extract a toy spectral lightcurve: mean over wavelength for each integration.
-    Supports both 3D cube (time, rows, cols) and 2D output (time, spectral channels).
+    Supports 3D cube (time, rows, cols), 2D output (time, spectral channels),
+    and 1D spectra (time,).
     """
-    data = np.asarray(dm.data)
-    # if full cube, reshape and average over columns
+    # get raw data array
+    raw = dm.data if hasattr(dm, 'data') else dm
+    data = np.asarray(raw)
+
+    # full cube: reshape and average over spatial axis
     if data.ndim == 3:
         reshaped = data.reshape(data.shape[0], data.shape[1], -1)
         spec = reshaped.mean(axis=2)
-    # if already 2D (time x wavelength), just return as-is
+    # 2D spectral lightcurve: time x wavelength
     elif data.ndim == 2:
         spec = data
+    # 1D spectral output: single spectral channel per integration
+    elif data.ndim == 1:
+        spec = data.reshape(-1, 1)
     else:
         raise ValueError(f"Unexpected data dimensions {data.ndim} in compute_spectral")
     return spec
