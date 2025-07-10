@@ -31,19 +31,27 @@ def compute_white_light(dm):
 
 def compute_spectral(dm):
     """
-    Extract a toy spectral lightcurve: mean over wavelength for each detector row.
+    Extract a toy spectral lightcurve: mean over wavelength for each integration.
+    Supports both 3D cube (time, rows, cols) and 2D output (time, spectral channels).
     """
     data = np.asarray(dm.data)
-    # reshape to [time, rows, columns] and average over columns
-    spec = data.reshape(data.shape[0], data.shape[1], -1)
-    return spec.mean(axis=2)
+    # if full cube, reshape and average over columns
+    if data.ndim == 3:
+        reshaped = data.reshape(data.shape[0], data.shape[1], -1)
+        spec = reshaped.mean(axis=2)
+    # if already 2D (time x wavelength), just return as-is
+    elif data.ndim == 2:
+        spec = data
+    else:
+        raise ValueError(f"Unexpected data dimensions {data.ndim} in compute_spectral")
+    return spec
 
 
 def cost_function(dm, w1=0.5, w2=0.5):
     """
     Weighted sum of:
       1) white-light fractional scatter
-      2) mean fractional scatter across spectral rows
+      2) mean fractional scatter across spectral channels
     """
     wl = compute_white_light(dm)
     spec = compute_spectral(dm)
