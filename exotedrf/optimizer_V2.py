@@ -16,16 +16,42 @@ from exotedrf.stage3      import run_stage3
 # ————————————————————————————————————————————————————————
 # 1) Cost function: robust fractional scatter of Stage 3 white-light
 # ————————————————————————————————————————————————————————
-def compute_white_light_scatter_from_stage3(spectra):
-    flux_keys = [k for k in spectra.keys() if k.startswith('flux')]
-    if not flux_keys:
-        raise RuntimeError("No 'flux_*' arrays found in Stage 3 output!")
-    wl_orders = [np.nansum(spectra[k], axis=1) for k in flux_keys]
-    wl = np.sum(wl_orders, axis=0)
-    return mad_std(detrend(wl)) / np.abs(np.median(wl))
+def compute_white_light(dm):
+    """
+    Extract the white-light curve (sum over all pixels) from a CubeModel-like dm.
+    """
+    # dm.data after RampFitStep -> CubeModel: shape (nints, dimy, dimx)
+    wl = dm.data.reshape(dm.data.shape[0], -1).sum(axis=1)
+    return wl
 
-def cost_function(stage3_res):
-    return compute_white_light_scatter_from_stage3(stage3_res)
+def compute_spectral(dm):
+    """
+    Extract a toy spectral lightcurve: sum down columns, averaging across wavelength.
+    """
+    # reshape to (nints, dimy, dimx) then average over x→ wavelength
+    spec = dm.data.reshape(dm.data.shape[0], dm.data.shape[1], -1)
+    return spec.mean(axis=2)  # shape (nints, dimy)
+
+def cost_function(dm, w1=0.5, w2=0.5):
+    """
+    Weighted sum of:
+      1) white-light fractional scatter
+      2) mean fractional scatter across spectral rows
+    """
+    wl   = compute_white_light(dm)    # shape (nints,)
+    spec = compute_spectral(dm)       # shape (nints, nrows)
+
+    # fractional scatter of white-light curve
+    frac_wl = mad_std(wl) / abs(np.median(wl))
+
+    # fractional scatter for each spectral row, then mean
+    frac_spec_rows = [
+        mad_std(spec[:, i]) / abs(np.median(spec[:, i]))
+        for i in range(spec.shape[1])
+    ]
+    frac_spec = np.mean(frac_spec_rows)
+
+    return w1 * frac_wl + w2 * frac_spec
 
 
 # ————————————————————————————————————————————————————————
