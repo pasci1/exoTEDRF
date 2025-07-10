@@ -22,16 +22,15 @@ def compute_white_light(dm):
     """
     Extract the white-light curve (sum over all pixels) from a CubeModel-like dm.
     """
-    wl = dm.data.reshape(dm.data.shape[0], -1).sum(axis=1)
-    return wl
+    return dm.data.reshape(dm.data.shape[0], -1).sum(axis=1)
 
 
 def compute_spectral(dm):
     """
-    Extract a toy spectral lightcurve: sum down columns, averaging across wavelength.
+    Extract a toy spectral lightcurve: mean over wavelength for each detector row.
     """
     spec = dm.data.reshape(dm.data.shape[0], dm.data.shape[1], -1)
-    return spec.mean(axis=2)  # shape (nints, dimy)
+    return spec.mean(axis=2)
 
 
 def cost_function(dm, w1=0.5, w2=0.5):
@@ -44,13 +43,12 @@ def cost_function(dm, w1=0.5, w2=0.5):
     spec = compute_spectral(dm)
 
     frac_wl = mad_std(wl) / abs(np.median(wl))
-    frac_spec_rows = [
+    frac_spec = np.mean([
         mad_std(spec[:, i]) / abs(np.median(spec[:, i]))
         for i in range(spec.shape[1])
-    ]
-    frac_spec = np.mean(frac_spec_rows)
-
+    ])
     return w1 * frac_wl + w2 * frac_spec
+
 
 # ————————————————————————————————————————————————————————
 # 2) Main optimizer
@@ -71,28 +69,28 @@ def main():
     )
     args = parser.parse_args()
 
-    # — load config & discover segment files —
+    # load config & discover segment files
     cfg = parse_config(args.config)
     input_files = unpack_input_dir(
         cfg['input_dir'],
-        mode            = cfg['observing_mode'],
-        filetag         = cfg['input_filetag'],
-        filter_detector = cfg['filter_detector']
+        mode=cfg['observing_mode'],
+        filetag=cfg['input_filetag'],
+        filter_detector=cfg['filter_detector']
     )
-    if len(input_files) == 0:
-        fancyprint(f"[WARN] `unpack_input_dir` found ZERO files in {cfg['input_dir']}.")
-        fancyprint("       Falling back to glob on '*.fits' in that directory.")
+    if not input_files:
+        fancyprint(f"[WARN] No files in {cfg['input_dir']}, globbing *.fits")
         input_files = sorted(glob.glob(os.path.join(cfg['input_dir'], "*.fits")))
-
-    if len(input_files) == 0:
-        raise RuntimeError(f"No FITS files found in {cfg['input_dir']}!")
-
+    if not input_files:
+        raise RuntimeError(f"No FITS found in {cfg['input_dir']}")
     fancyprint(f"Using {len(input_files)} segment(s) from {cfg['input_dir']}")
 
-    # 2) load K-int slice
-    seg1 = os.path.join(cfg['input_dir'], "jw01366003001_04101_00001-seg001_nrs1_uncal.fits")
-    dm_full = datamodels.open(seg1)
-    K = min(60, dm_full.data.shape[0])
+    # load a short slice of the first segment
+    seg0 = os.path.join(
+        cfg['input_dir'],
+        "jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
+    )
+    dm_full = datamodels.open(seg0)
+    K       = min(60, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.integration_start = 1
@@ -100,71 +98,64 @@ def main():
     dm_slice.meta.exposure.nints = K
     dm_full.close()
 
-    # — build parameter grid —
+    # build parameter grid
     param_ranges = {}
     if args.instrument == "NIRISS":
         param_ranges.update({
             "soss_inner_mask_width": [20, 40, 80],
             "soss_outer_mask_width": [35, 70, 140],
-            "jump_threshold":        [5, 15, 30],
-            "time_jump_threshold":   [3, 10, 20],
+            "jump_threshold": [5, 15, 30],
+            "time_jump_threshold": [3, 10, 20],
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            "nirspec_mask_width":   [8, 16, 32],
-            "jump_threshold":       [5, 15, 30],
-            "time_jump_threshold":  [3, 10, 20],
+            "nirspec_mask_width": [8, 16, 32],
+            "jump_threshold": [5, 15, 30],
+            "time_jump_threshold": [3, 10, 20],
         })
-    else:  # MIRI
+    else:
         param_ranges.update({
-            "miri_drop_groups":      [6, 12, 24],
-            "jump_threshold":        [5, 15, 30],
-            "time_jump_threshold":   [3, 10, 20],
-            "miri_trace_width":      [10, 20, 40],
+            "miri_drop_groups": [6, 12, 24],
+            "jump_threshold": [5, 15, 30],
+            "time_jump_threshold": [3, 10, 20],
+            "miri_trace_width": [10, 20, 40],
             "miri_background_width": [7, 14, 28],
         })
-
     param_ranges.update({
         "space_outlier_threshold": [5, 15, 30],
-        "time_outlier_threshold":  [3, 10, 20],
-        "pca_components":          [5, 10, 20],
-        "extract_width":           [15, 30, 60],
+        "time_outlier_threshold": [3, 10, 20],
+        "pca_components": [5, 10, 20],
+        "extract_width": [15, 30, 60],
     })
 
     param_order = list(param_ranges.keys())
-    current = {k: int(np.median(v)) for k, v in param_ranges.items()}
-
+    current     = {k: int(np.median(v)) for k, v in param_ranges.items()}
     total_steps = sum(len(v) for v in param_ranges.values())
-    count = 1
+    count       = 1
+
     logf = open("Cost_function_V2.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
-    # ————————————————————————————————————————————————————————
-    # 3) coordinate-descent
-    # ————————————————————————————————————————————————————————
+    # coordinate-descent
     for key in param_order:
         print(
-            f"\n→ Optimizing {key} (others fixed = { {k: current[k] for k in current if k != key} })",
+            f"\n→ Optimizing {key} (fixed={{" + ", ".join(f"{k}={current[k]}" for k in current if k!=key) + "}})",
             flush=True
         )
-        best_cost = None
-        best_val  = current[key]
+        best_cost, best_val = None, current[key]
 
         for trial in param_ranges[key]:
-            # status update before heavy compute
             print(
-                "\n\n\n"
-                "############################################\n"
-                f" Step: {count}/{total_steps} starting trial {key}={trial}\n"
-                "############################################\n\n\n",
+                "\n############################################",
+                f"\n Step: {count}/{total_steps} starting {key}={trial}",
+                "\n############################################\n",
                 flush=True
             )
-
             trial_params = current.copy()
             trial_params[key] = trial
 
-            # define baseline integrations for this slice
-            baseline_ints = list(range(dm_slice.data.shape[0]))
+            # only start & end integrations
+            baseline_ints = [0, K]
 
             t0 = time.perf_counter()
             st1 = run_stage1(
@@ -172,12 +163,12 @@ def main():
                 mode=cfg['observing_mode'],
                 baseline_ints=baseline_ints,
                 save_results=False, skip_steps=[],
-                rejection_threshold      = trial_params.get("jump_threshold"),
-                time_rejection_threshold = trial_params.get("time_jump_threshold"),
-                soss_inner_mask_width    = trial_params.get("soss_inner_mask_width"),
-                soss_outer_mask_width    = trial_params.get("soss_outer_mask_width"),
-                nirspec_mask_width       = trial_params.get("nirspec_mask_width"),
-                miri_drop_groups         = trial_params.get("miri_drop_groups"),
+                rejection_threshold=trial_params.get("jump_threshold"),
+                time_rejection_threshold=trial_params.get("time_jump_threshold"),
+                soss_inner_mask_width=trial_params.get("soss_inner_mask_width"),
+                soss_outer_mask_width=trial_params.get("soss_outer_mask_width"),
+                nirspec_mask_width=trial_params.get("nirspec_mask_width"),
+                miri_drop_groups=trial_params.get("miri_drop_groups"),
                 **cfg.get('stage1_kwargs', {})
             )
             st2, centroids = run_stage2(
@@ -185,14 +176,14 @@ def main():
                 baseline_ints=baseline_ints,
                 mode=cfg['observing_mode'],
                 save_results=False, skip_steps=[],
-                space_thresh          = trial_params["space_outlier_threshold"],
-                time_thresh           = trial_params["time_outlier_threshold"],
-                pca_components        = trial_params["pca_components"],
-                soss_inner_mask_width = trial_params.get("soss_inner_mask_width"),
-                soss_outer_mask_width = trial_params.get("soss_outer_mask_width"),
-                nirspec_mask_width    = trial_params.get("nirspec_mask_width"),
-                miri_trace_width      = trial_params.get("miri_trace_width"),
-                miri_background_width = trial_params.get("miri_background_width"),
+                space_thresh=trial_params["space_outlier_threshold"],
+                time_thresh=trial_params["time_outlier_threshold"],
+                pca_components=trial_params["pca_components"],
+                soss_inner_mask_width=trial_params.get("soss_inner_mask_width"),
+                soss_outer_mask_width=trial_params.get("soss_outer_mask_width"),
+                nirspec_mask_width=trial_params.get("nirspec_mask_width"),
+                miri_trace_width=trial_params.get("miri_trace_width"),
+                miri_background_width=trial_params.get("miri_background_width"),
                 **cfg.get('stage2_kwargs', {})
             )
             st3 = run_stage3(
@@ -202,33 +193,32 @@ def main():
                 extract_width=trial_params["extract_width"],
                 **cfg.get('stage3_kwargs', {})
             )
-            dt = time.perf_counter() - t0
+            dt   = time.perf_counter() - t0
             cost = cost_function(st3)
 
-            # final status update after compute
             print(
-                "\n\n\n"
-                "############################################\n"
-                f" Step: {count}/{total_steps} completed (dt={dt:.1f}s)\n"
-                "############################################\n\n\n",
+                "\n############################################",
+                f"\n Step: {count}/{total_steps} completed (dt={dt:.1f}s)",
+                "\n############################################\n",
                 flush=True
             )
             count += 1
 
-            vals = [str(trial_params[k]) for k in param_order]
-            logf.write("\t".join(vals + [f"{dt:.1f}", f"{cost:.6f}"]) + "\n")
+            logf.write(
+                "\t".join(str(trial_params[k]) for k in param_order)
+                + f"\t{dt:.1f}\t{cost:.6f}\n"
+            )
 
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
 
         current[key] = best_val
-        fancyprint(f"Best {key} = {best_val} (cost={best_cost:.6f})")
+        fancyprint(f"✔ Best {key} = {best_val} (cost={best_cost:.6f})")
 
     logf.close()
     fancyprint("\n=== FINAL OPTIMUM ===\n")
     fancyprint(current)
     fancyprint("Log saved to Cost_function_V2.txt")
-
 
 if __name__ == "__main__":
     main()
