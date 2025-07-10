@@ -13,9 +13,10 @@ from exotedrf.stage1      import run_stage1
 from exotedrf.stage2      import run_stage2
 from exotedrf.stage3      import run_stage3
 
-# ————————————————————————————————————————————————————————
-# 1) Cost function: robust fractional scatter of Stage 3 white-light
-# ————————————————————————————————————————————————————————
+# ————————————————————————
+# 1) Cost function: weighted sum of white-light and spectral scatter
+# ————————————————————————
+
 def compute_white_light(dm):
     """
     Extract the white-light curve (sum over all pixels) from a CubeModel-like dm.
@@ -24,6 +25,7 @@ def compute_white_light(dm):
     wl = dm.data.reshape(dm.data.shape[0], -1).sum(axis=1)
     return wl
 
+
 def compute_spectral(dm):
     """
     Extract a toy spectral lightcurve: sum down columns, averaging across wavelength.
@@ -31,6 +33,7 @@ def compute_spectral(dm):
     # reshape to (nints, dimy, dimx) then average over x→ wavelength
     spec = dm.data.reshape(dm.data.shape[0], dm.data.shape[1], -1)
     return spec.mean(axis=2)  # shape (nints, dimy)
+
 
 def cost_function(dm, w1=0.5, w2=0.5):
     """
@@ -54,9 +57,10 @@ def cost_function(dm, w1=0.5, w2=0.5):
     return w1 * frac_wl + w2 * frac_spec
 
 
-# ————————————————————————————————————————————————————————
+# ————————————————————————
 # 2) Main optimizer
-# ————————————————————————————————————————————————————————
+# ————————————————————————
+
 def main():
     parser = argparse.ArgumentParser(
         description="Coordinate-descent optimizer for exoTEDRF Stages 1–3"
@@ -134,19 +138,22 @@ def main():
     logf = open("Cost_function_V2.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
+    # ————————————————————————
     # coordinate‐descent
+    # ————————————————————————
     for key in param_order:
-        best_cost, best_val = None, current[key]
-        fancyprint(f"\n→ Optimizing {key} (others fixed at "
-                   f"{ {k:current[k] for k in current if k!=key} })")
+        print(f"\n→ Optimizing {key} (others fixed = "
+              f"{ {k: current[k] for k in current if k != key} })")
+        best_cost = None
+        best_val  = current[key]
 
         for trial in param_ranges[key]:
             trial_params = current.copy()
             trial_params[key] = trial
 
+            # run stages & measure time
             t0 = time.perf_counter()
 
-            # Stage 1
             st1 = run_stage1(
                 input_files,
                 mode=cfg['observing_mode'],
@@ -160,23 +167,21 @@ def main():
                 **cfg.get('stage1_kwargs', {})
             )
 
-            # Stage 2
             st2, centroids = run_stage2(
                 st1,
                 mode=cfg['observing_mode'],
                 save_results=False, skip_steps=[],
-                space_thresh             = trial_params["space_outlier_threshold"],
-                time_thresh              = trial_params["time_outlier_threshold"],
-                pca_components           = trial_params["pca_components"],
-                soss_inner_mask_width    = trial_params.get("soss_inner_mask_width"),
-                soss_outer_mask_width    = trial_params.get("soss_outer_mask_width"),
-                nirspec_mask_width       = trial_params.get("nirspec_mask_width"),
-                miri_trace_width         = trial_params.get("miri_trace_width"),
-                miri_background_width    = trial_params.get("miri_background_width"),
+                space_thresh          = trial_params["space_outlier_threshold"],
+                time_thresh           = trial_params["time_outlier_threshold"],
+                pca_components        = trial_params["pca_components"],
+                soss_inner_mask_width = trial_params.get("soss_inner_mask_width"),
+                soss_outer_mask_width = trial_params.get("soss_outer_mask_width"),
+                nirspec_mask_width    = trial_params.get("nirspec_mask_width"),
+                miri_trace_width      = trial_params.get("miri_trace_width"),
+                miri_background_width = trial_params.get("miri_background_width"),
                 **cfg.get('stage2_kwargs', {})
             )
 
-            # Stage 3
             st3 = run_stage3(
                 st2,
                 centroids=centroids,
@@ -188,6 +193,15 @@ def main():
             dt   = time.perf_counter() - t0
             cost = cost_function(st3)
 
+            # status update
+            print(
+                "\n\n\n"
+                "###########################################\n"
+                f" Step: {count}/{total_steps} completed\n"
+                "###########################################\n\n\n"
+            )
+            count += 1
+
             # log this trial
             vals = [str(trial_params[k]) for k in param_order]
             logf.write("\t".join(vals + [f"{dt:.1f}", f"{cost:.6f}"]) + "\n")
@@ -196,15 +210,11 @@ def main():
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
 
-            print(f"[{count}/{total_steps}] {key}={trial} → "
-                  f"cost={cost:.6f} ({dt:.1f}s)")
-            count += 1
-
         current[key] = best_val
         fancyprint(f"✔ Best {key} = {best_val} (cost={best_cost:.6f})")
 
     logf.close()
-    fancyprint("\n=== FINAL OPTIMUM ===")
+    fancyprint("\n=== FINAL OPTIMUM ===\n")
     fancyprint(current)
     fancyprint("Log saved to Cost_function_V2.txt")
 
