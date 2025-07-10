@@ -1,0 +1,237 @@
+#!/usr/bin/env python
+
+import os, time, itertools, yaml, argparse
+import numpy as np
+from astropy.stats import mad_std
+from jwst import datamodels
+from scipy.signal import detrend
+from astropy.stats import mad_std
+
+from exotedrf.utils    import parse_config
+from exotedrf.stage1   import run_stage1
+
+# ----------------------------------------
+# 1) Cost‐function definitions
+# ----------------------------------------
+def compute_white_light(dm):
+    """
+    Extract the white‐light curve (sum over all pixels)
+    """
+    # dm.data after RampFitStep -> CubeModel: shape (nints, dimy, dimx)
+    wl = dm.data.reshape(dm.data.shape[0], -1).sum(axis=1)
+    return wl
+
+
+def compute_spectral(dm):
+    """
+    Extract a toy spectral lightcurve: e.g. sum down columns
+    """
+    spec = dm.data.reshape(dm.data.shape[0], dm.data.shape[1], -1)
+    return spec.mean(axis=2)  # shape (nints, dimy)
+
+
+def reduced_chi2(residuals, sigma=1.0):
+    """
+    Compute reduced chi-squared assuming errors = sigma
+    """
+    Chi_2 = np.sum((residuals / sigma)**2)
+    nu = residuals.size - 1  
+    return Chi_2 / nu
+
+
+def cost_function(dm, w1=1.0, w2=1.0, w3=1.0):
+    # Extract white-light & spectral curves
+    wl   = compute_white_light(dm)             # shape (nints,)
+    spec = compute_spectral(dm)                # shape (nints, nrows)
+ 
+    #  fractional scatter of white-light curve
+    frac_wl = mad_std(wl) / np.abs(np.median(wl))
+
+    # fractional scatter averaged over spectral rows
+    frac_spec_rows = [
+        mad_std(spec[:, i]) / np.abs(np.median(spec[:, i]))
+        for i in range(spec.shape[1])
+    ]
+    frac_spec = np.mean(frac_spec_rows)
+
+    # combine with weights 
+    return w1 * frac_wl + w2 * frac_spec
+
+
+# ----------------------------------------
+# 2) Main & coordinate‐descent
+# ----------------------------------------
+def main():
+    import argparse
+    import time
+    import numpy as np
+    from itertools import product
+    from jwst import datamodels
+    from exotedrf.utils import parse_config
+    from exotedrf.stage1 import run_stage1
+
+    # 1) parse args & config
+    p = argparse.ArgumentParser()
+    p.add_argument("--config", default="run_WASP39b.yaml")
+    p.add_argument("--w1", type=float, default=1.0)
+    p.add_argument("--w2", type=float, default=1.0)
+    p.add_argument("--w3", type=float, default=1.0)
+    args = p.parse_args()
+    cfg = parse_config(args.config)
+
+    # ─── START GLOBAL TIMER ─────────────────────────────────────────────
+    t0_total = time.perf_counter()
+    # ────────────────────────────────────────────────────────────────────
+
+    # 2) load K‐int slice K=
+    seg1 = cfg['input_dir'] + "/jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
+    dm_full = datamodels.open(seg1)
+    K = min(60, dm_full.data.shape[0])
+    dm_slice = dm_full.copy()
+    dm_slice.data = dm_full.data[:K]
+    
+    dm_slice.meta.exposure.integration_start = 1
+    dm_slice.meta.exposure.integration_end   = K
+    dm_slice.meta.exposure.nints = K
+    dm_full.close()
+
+    # 3) parameter ranges & order SWEEP OVER THESE PARAMETERS
+    param_ranges = {
+        'time_window':              [5,7],
+        'box_size':                 [10,20],
+        'jump_threshold':           [10,20],
+        'rejection_threshold':      [10,20],
+        'time_jump_threshold':      [10,20],
+        'nirspec_mask_width':       [8,20],
+    }
+
+    param_order = [
+        'time_window',
+        'box_size',
+        'jump_threshold',
+        'rejection_threshold',
+        'time_jump_threshold',
+        'nirspec_mask_width',
+    ]
+
+    # counter for status update
+    count = 1
+    total_steps = sum(len(v) for v in param_ranges.values())
+
+    # 4) initialize current best at medians
+    current = {p: int(np.median(param_ranges[p])) for p in param_order}
+    current.update(w1=args.w1, w2=args.w2, w3=args.w3)
+    skip_steps = []  
+
+    def evaluate_one(params):
+        print("Running with params:", params)
+
+        # ─── Build the kwargs that run_stage1 knows ─────────────────────────────
+        run_kwargs = {
+            # Up-the-ramp sigma threshold
+            'rejection_threshold':      params['jump_threshold'],
+            # Time-domain sigma threshold
+            'time_rejection_threshold': params['time_jump_threshold'],
+            # NIRSpec mask width for the OneOverFStep
+            'nirspec_mask_width':       params['nirspec_mask_width'],
+            # Everything else (time_window) goes under the JumpStep sub-dict:
+            'JumpStep': {
+                'time_window': params['time_window']
+            }
+        }
+
+        # ─── Time it & run Stage 1 ─────────────────────────────────────────────
+        t0 = time.perf_counter()
+        baseline_ints = list(range(dm_slice.data.shape[0]))  # [0…K-1]
+
+        results = run_stage1(
+            [dm_slice],
+            mode=cfg['observing_mode'],
+            baseline_ints=baseline_ints,
+            save_results=False,
+            skip_steps=skip_steps,
+            **run_kwargs
+        )
+        dt = time.perf_counter() - t0
+
+        # ─── Score it ─────────────────────────────────────────────────────────
+        dm_out = results[0]
+        J = cost_function(dm_out, params['w1'], params['w2'], params['w3'])
+        return J, dt
+
+    # 5) open log file (TSV) and write header
+    logfile = open("Cost_function.txt", "w")
+    logfile.write(
+        "time_window	"
+        "box_size	"
+        "jump_threshold	"
+        "rejection_threshold	"
+        "time_jump_threshold	"
+        "nirspec_mask_width	"
+        "duration_s	"
+        "J
+"
+    )
+
+    # 6) coordinate‐descent
+    for key in param_order:
+        print(f"\n→ Optimizing {key} (others fixed = "
+              f"{{{ {k:current[k] for k in current if k!=key} }}})")
+        best_J = None
+        best_val = current[key]
+        best_dt = None
+
+        for trial in param_ranges[key]:
+            trial_params = current.copy()
+            trial_params[key] = trial
+            J,  dt = evaluate_one(trial_params)
+
+            print(f"\n\n\n###########################################################\n Step: {count}/{total_steps} completed\n###########################################################\n\n\n")
+            count +=1 
+            logfile.write(
+                f"{trial_params['time_window']}\t"
+                f"{trial_params['box_size']}\t"
+                f"{trial_params['jump_threshold']}\t"
+                f"{trial_params['rejection_threshold']}\t"
+                f"{trial_params['time_jump_threshold']}\t"
+                f"{trial_params['nirspec_mask_width']}\t"
+                f"{dt:.1f}\t"
+                f"{J:.6f}\n"
+            )
+
+            print(f"   {key}={trial} → J={J:.6f} ({dt:.1f}s)")
+
+            if best_J is None or J < best_J:
+                best_J, best_val, best_dt = J, trial, dt
+
+        current[key] = best_val
+        print(f"✔→ Best {key} = {best_val} (J={best_J:.6f}, dt={best_dt:.1f}s)")
+
+    logfile.close()
+
+    # 7) final report
+    print("\n=== FINAL OPTIMUM ===")
+    print("params =", {k: current[k] for k in param_order})
+    print("J =", best_J)
+    print("last dt =", best_dt)
+
+    # ─── STOP GLOBAL TIMER & PRINT TOTAL ────────────────────────────────
+    t1_total = time.perf_counter()
+    total = t1_total - t0_total
+    h = int(total) // 3600
+    m = (int(total) % 3600) // 60
+    s = total % 60
+    print(f"TOTAL optimization runtime: {h}h {m:02d}min {s:04.1f}s")
+    # ────────────────────────────────────────────────────────────────────
+
+    # 8) write final optimum to logfile
+    logfile = open("Cost_function.txt", "a")  # reopen in append mode
+    logfile.write("\n# Final optimized parameters:\n")
+    for k in param_order:
+        logfile.write(f"# {k} = {current[k]}\n")
+    logfile.write(f"# Final cost J = {best_J:.6f}\n")
+    logfile.close()
+
+
+if __name__ == "__main__":
+    main()
