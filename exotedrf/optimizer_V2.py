@@ -144,12 +144,11 @@ def main():
     # ————————————————————————————————————————————————————————
     for key in param_order:
         print(
-            f"\n→ Optimizing {key} (others fixed ="
-            f" { {k: current[k] for k in current if k != key} })",
+            f"\n→ Optimizing {key} (others fixed = { {k: current[k] for k in current if k != key} })",
             flush=True
         )
         best_cost = None
-        best_val = current[key]
+        best_val  = current[key]
 
         for trial in param_ranges[key]:
             # status update before heavy compute
@@ -164,10 +163,14 @@ def main():
             trial_params = current.copy()
             trial_params[key] = trial
 
+            # define baseline integrations for this slice
+            baseline_ints = list(range(dm_slice.data.shape[0]))
+
             t0 = time.perf_counter()
             st1 = run_stage1(
                 [dm_slice],
                 mode=cfg['observing_mode'],
+                baseline_ints=baseline_ints,
                 save_results=False, skip_steps=[],
                 rejection_threshold      = trial_params.get("jump_threshold"),
                 time_rejection_threshold = trial_params.get("time_jump_threshold"),
@@ -179,6 +182,7 @@ def main():
             )
             st2, centroids = run_stage2(
                 st1,
+                baseline_ints=baseline_ints,
                 mode=cfg['observing_mode'],
                 save_results=False, skip_steps=[],
                 space_thresh          = trial_params["space_outlier_threshold"],
