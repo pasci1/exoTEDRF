@@ -104,7 +104,7 @@ def main():
     # 2) load K‐int slice K= K =
     seg1 = cfg['input_dir'] + "/jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
     dm_full = datamodels.open(seg1)
-    K = min(5, dm_full.data.shape[0])
+    K = min(60, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     
@@ -160,7 +160,7 @@ def main():
     current = {p: int(np.median(param_ranges[p])) for p in param_order}
     current.update(w1=args.w1, w2=args.w2, w3=args.w3)
 
-    skip_steps = ['JumpStep']  
+    skip_steps = []  
  
     def evaluate_one(params):
         print("Running with params:", params)
@@ -168,7 +168,7 @@ def main():
         # ─── Build the kwargs that run_stage1 knows ─────────────────────────────
         run_kwargs = {
             # Up-the-ramp sigma threshold
-            'rejection_threshold':      params['thresh'],
+            'rejection_threshold':      params['rejection_threshold'],
             # Time-domain sigma threshold
             'time_rejection_threshold': params['time_rejection_threshold'],
             # NIRSpec mask width for the OneOverFStep
