@@ -191,7 +191,6 @@ def main():
             )
             # ensure centroids is a DataFrame with xpos/ypos
             if isinstance(centroids, np.ndarray):
-                # centroids returned as shape (2, N); transpose to (N, 2) for DataFrame
                 centroids = pd.DataFrame(centroids.T, columns=['xpos','ypos'])
 
             st3 = run_stage3(
@@ -201,8 +200,16 @@ def main():
                 extract_width=trial_params["extract_width"],
                 **cfg.get('stage3_kwargs', {})
             )
+
+            # unwrap dict returned by run_stage3 if necessary
+            if isinstance(st3, dict):
+                # assume the first entry is the primary DataModel
+                st3_model = next(iter(st3.values()))
+            else:
+                st3_model = st3
+
             dt   = time.perf_counter() - t0
-            cost = cost_function(st3)
+            cost = cost_function(st3_model)
 
             print(
                 "\n############################################",
