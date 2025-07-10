@@ -191,7 +191,8 @@ def main():
             )
             # ensure centroids is a DataFrame with xpos/ypos
             if isinstance(centroids, np.ndarray):
-                centroids = pd.DataFrame(centroids, columns=['xpos','ypos'])
+                # centroids returned as shape (2, N); transpose to (N, 2) for DataFrame
+                centroids = pd.DataFrame(centroids.T, columns=['xpos','ypos'])
 
             st3 = run_stage3(
                 st2,
