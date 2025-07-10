@@ -171,11 +171,13 @@ def main():
                 miri_drop_groups=trial_params.get("miri_drop_groups"),
                 **cfg.get('stage1_kwargs', {})
             )
+            # skip heavy BadPixStep to avoid long spatial outlier flagging
             st2, centroids = run_stage2(
                 st1,
                 baseline_ints=baseline_ints,
                 mode=cfg['observing_mode'],
-                save_results=False, skip_steps=[],
+                save_results=False,
+                skip_steps=['BadPixStep'],
                 space_thresh=trial_params["space_outlier_threshold"],
                 time_thresh=trial_params["time_outlier_threshold"],
                 pca_components=trial_params["pca_components"],
