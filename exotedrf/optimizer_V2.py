@@ -233,7 +233,8 @@ def main():
 
             dt   = time.perf_counter() - t0
             cost = cost_function(st3_model)
-
+        
+            print(cost)
             print(
                 "\n############################################",
                 f"\n Step: {count}/{total_steps} completed (dt={dt:.1f}s)",
