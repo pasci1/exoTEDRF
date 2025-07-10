@@ -14,20 +14,26 @@ from exotedrf.stage1   import run_stage1
 # 1) Cost‐function definitions
 # ----------------------------------------
 def compute_white_light(dm):
-    """Extract the white‐light curve (sum over all pixels)."""
-    # dm.data after RampFitStep is a CubeModel: shape (nints, dimy, dimx)
+    """
+    Extract the white‐light curve (sum over all pixels)
+    """
+    # dm.data after RampFitStep -> CubeModel: shape (nints, dimy, dimx)
     wl = dm.data.reshape(dm.data.shape[0], -1).sum(axis=1)
     return wl
 
 def compute_spectral(dm):
-    """Extract a toy spectral lightcurve: e.g. sum down columns."""
+    """
+    Extract a toy spectral lightcurve: e.g. sum down columns
+    """
     spec = dm.data.reshape(dm.data.shape[0], dm.data.shape[1], -1)
     return spec.mean(axis=2)  # shape (nints, dimy)
 
 def reduced_chi2(residuals, sigma=1.0):
-    """Compute reduced chi-squared assuming errors = sigma."""
+    """
+    Compute reduced chi-squared assuming errors = sigma
+    """
     Chi_2 = np.sum((residuals / sigma)**2)
-    nu = residuals.size - 1  # degrees of freedom
+    nu = residuals.size - 1  
     return Chi_2 / nu
 
 """
@@ -50,22 +56,21 @@ def cost_function(dm, w1, w2, w3):
 
 
 def cost_function(dm, w1=1.0, w2=1.0, w3=1.0):
-    # — Extract white-light & spectral curves —
+    # Extract white-light & spectral curves
     wl   = compute_white_light(dm)             # shape (nints,)
     spec = compute_spectral(dm)                # shape (nints, nrows)
  
-    # — 1) Robust fractional scatter of white-light curve —
-    #    MAD is ~1.4826*median(|x − median(x)|), but mad_std wraps that.
+    #  fractional scatter of white-light curve
     frac_wl = mad_std(wl) / np.abs(np.median(wl))
 
-    # — 2) Robust fractional scatter averaged over spectral rows —
+    # fractional scatter averaged over spectral rows
     frac_spec_rows = [
         mad_std(spec[:, i]) / np.abs(np.median(spec[:, i]))
         for i in range(spec.shape[1])
     ]
     frac_spec = np.mean(frac_spec_rows)
 
-    # — Combine with weights —
+    # combine with weights 
     return w1 * frac_wl + w2 * frac_spec
 
 
@@ -99,13 +104,13 @@ def main():
     # 2) load K‐int slice K= K =
     seg1 = cfg['input_dir'] + "/jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
     dm_full = datamodels.open(seg1)
-    K = min(60, dm_full.data.shape[0])
+    K = min(5, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
-    #
+    
     dm_slice.meta.exposure.integration_start = 1
     dm_slice.meta.exposure.integration_end   = K
-    #
+    
     dm_slice.meta.exposure.nints = K
     dm_full.close()
 
@@ -123,11 +128,11 @@ def main():
     # fast Check Params
     
     param_ranges = {
-        'time_window':              [3],
+        'time_window':              [7],
         'box_size':                 [10],
         'thresh':                   [10],
         'rejection_threshold':      [10], 
-        'time_rejection_threshold': [10,50,100,500,1000,5000,10000],
+        'time_rejection_threshold': [10],
         'nirspec_mask_width':       [8],
     }
 
@@ -151,16 +156,16 @@ def main():
     total_steps = sum(len(v) for v in param_ranges.values())
 
     # 4) initialize current best at medians
-    # this just makes sure to start with a median for the rest parameters 
+    # this just makes sure to start with a median for the rest parameters not an outliner
     current = {p: int(np.median(param_ranges[p])) for p in param_order}
     current.update(w1=args.w1, w2=args.w2, w3=args.w3)
 
-    skip_steps = []  
+    skip_steps = ['JumpStep']  
  
     def evaluate_one(params):
         print("Running with params:", params)
 
-        # ─── Build the kwargs that run_stage1 actually knows ────────────────────
+        # ─── Build the kwargs that run_stage1 knows ─────────────────────────────
         run_kwargs = {
             # Up-the-ramp sigma threshold
             'rejection_threshold':      params['thresh'],
