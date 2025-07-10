@@ -160,7 +160,7 @@ def main():
         return J, dt
 
     # 5) open log file (TSV) and write header
-    logfile = open("Cost_function.txt", "w")
+    logfile = open("Cost_function_new.txt", "w")
     logfile.write(
         "time_window\t"
         "box_size\t"
@@ -224,7 +224,7 @@ def main():
     # ────────────────────────────────────────────────────────────────────
 
     # 8) write final optimum to logfile
-    logfile = open("Cost_function.txt", "a")  # reopen in append mode
+    logfile = open("Cost_function_new.txt", "a")  # reopen in append mode
     logfile.write("\n# Final optimized parameters:\n")
     for k in param_order:
         logfile.write(f"# {k} = {current[k]}\n")
