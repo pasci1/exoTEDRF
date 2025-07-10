@@ -5,6 +5,7 @@ import glob
 import time
 import argparse
 import numpy as np
+import pandas as pd
 from astropy.stats import mad_std
 from scipy.signal import detrend
 from jwst import datamodels
@@ -188,6 +189,10 @@ def main():
                 miri_background_width=trial_params.get("miri_background_width"),
                 **cfg.get('stage2_kwargs', {})
             )
+            # ensure centroids is a DataFrame with xpos/ypos
+            if isinstance(centroids, np.ndarray):
+                centroids = pd.DataFrame(centroids, columns=['xpos','ypos'])
+
             st3 = run_stage3(
                 st2,
                 centroids=centroids,
