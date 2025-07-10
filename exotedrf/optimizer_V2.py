@@ -40,7 +40,7 @@ def cost_function(dm, w1=0.5, w2=0.5):
       1) white-light fractional scatter
       2) mean fractional scatter across spectral rows
     """
-    wl   = compute_white_light(dm)
+    wl = compute_white_light(dm)
     spec = compute_spectral(dm)
 
     frac_wl = mad_std(wl) / abs(np.median(wl))
@@ -61,7 +61,7 @@ def main():
         description="Coordinate-descent optimizer for exoTEDRF Stages 1–3"
     )
     parser.add_argument(
-        "--config", default="run_WASP39b.yaml",
+        "--config", default="run_DMS.yaml",
         help="Path to your DMS config YAML"
     )
     parser.add_argument(
@@ -89,8 +89,8 @@ def main():
 
     fancyprint(f"Using {len(input_files)} segment(s) from {cfg['input_dir']}")
 
-    # 2) load K-int slice K=
-    seg1 = cfg['input_dir'] + "/jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
+    # 2) load K-int slice
+    seg1 = os.path.join(cfg['input_dir'], "jw01366003001_04101_00001-seg001_nrs1_uncal.fits")
     dm_full = datamodels.open(seg1)
     K = min(60, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
@@ -143,17 +143,30 @@ def main():
     # 3) coordinate-descent
     # ————————————————————————————————————————————————————————
     for key in param_order:
-        print(f"\n Optimizing {key} (others fixed = { {k: current[k] for k in current if k != key} })")
+        print(
+            f"\n→ Optimizing {key} (others fixed ="
+            f" { {k: current[k] for k in current if k != key} })",
+            flush=True
+        )
         best_cost = None
-        best_val  = current[key]
+        best_val = current[key]
 
         for trial in param_ranges[key]:
+            # status update before heavy compute
+            print(
+                "\n\n\n"
+                "############################################\n"
+                f" Step: {count}/{total_steps} starting trial {key}={trial}\n"
+                "############################################\n\n\n",
+                flush=True
+            )
+
             trial_params = current.copy()
             trial_params[key] = trial
 
             t0 = time.perf_counter()
             st1 = run_stage1(
-                input_files,
+                [dm_slice],
                 mode=cfg['observing_mode'],
                 save_results=False, skip_steps=[],
                 rejection_threshold      = trial_params.get("jump_threshold"),
@@ -185,14 +198,16 @@ def main():
                 extract_width=trial_params["extract_width"],
                 **cfg.get('stage3_kwargs', {})
             )
-            dt   = time.perf_counter() - t0
+            dt = time.perf_counter() - t0
             cost = cost_function(st3)
 
+            # final status update after compute
             print(
                 "\n\n\n"
                 "############################################\n"
-                f" Step: {count}/{total_steps} completed\n"
-                "############################################\n\n\n"
+                f" Step: {count}/{total_steps} completed (dt={dt:.1f}s)\n"
+                "############################################\n\n\n",
+                flush=True
             )
             count += 1
 
