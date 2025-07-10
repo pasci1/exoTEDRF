@@ -99,8 +99,7 @@ def main():
     param_ranges = {
         'time_window':              [3,5,7],
         'box_size':                 [10,15,20],
-        'jump_threshold':           [10,15,20],
-        'time_jump_threshold':      [10,15,20],
+        'rejection_threshold':      [10,15,20],
         'time_rejection_threshold': [10,15,20],
         'nirspec_mask_width':       [8,15,20],
     }
@@ -108,8 +107,7 @@ def main():
     param_order = [
         'time_window',
         'box_size',
-        'jump_threshold',
-        'time_jump_threshold',
+        'rejection_threshold',
         'time_rejection_threshold',
         'nirspec_mask_width',
     ]
@@ -128,17 +126,14 @@ def main():
 
         # ─── Build the kwargs that run_stage1 knows ─────────────────────────────
         run_kwargs = {
-            'jump_threshold':           params['jump_threshold'],
-            'time_jump_threshold':      params['time_jump_threshold'],
-            # Time-domain sigma threshold
+            'rejection_threshold':      params['rejection_threshold'],
             'time_rejection_threshold': params['time_rejection_threshold'],
-            # NIRSpec mask width for the OneOverFStep
             'nirspec_mask_width':       params['nirspec_mask_width'],
-            # Everything else (time_window) goes under the JumpStep sub-dict:
             'JumpStep': {
                 'time_window': params['time_window']
             }
         }
+
 
         # ─── Time it & run Stage 1 ─────────────────────────────────────────────
         t0 = time.perf_counter()
@@ -164,13 +159,13 @@ def main():
     logfile.write(
         "time_window\t"
         "box_size\t"
-        "jump_threshold\t"
-        "time_jump_threshold\t"
+        "rejection_threshold\t"
         "time_rejection_threshold\t"
         "nirspec_mask_width\t"
         "duration_s\t"
         "J\n"
     )
+
 
     # 6) coordinate‐descent
     for key in param_order:
@@ -190,13 +185,13 @@ def main():
             logfile.write(
                 f"{trial_params['time_window']}\t"
                 f"{trial_params['box_size']}\t"
-                f"{trial_params['jump_threshold']}\t"
-                f"{trial_params['time_jump_threshold']}\t"
+                f"{trial_params['rejection_threshold']}\t"
                 f"{trial_params['time_rejection_threshold']}\t"
                 f"{trial_params['nirspec_mask_width']}\t"
                 f"{dt:.1f}\t"
                 f"{J:.6f}\n"
             )
+
 
             print(f"   {key}={trial} → J={J:.6f} ({dt:.1f}s)")
 
