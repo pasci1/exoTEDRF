@@ -128,12 +128,12 @@ def main():
     # fast Check Params
     
     param_ranges = {
-        'time_window':              [7],
-        'box_size':                 [10],
-        'thresh':                   [10],
-        'rejection_threshold':      [10], 
-        'time_rejection_threshold': [10],
-        'nirspec_mask_width':       [8],
+        'time_window':              [5,7],
+        'box_size':                 [10,20],
+        'thresh':                   [10,20],
+        'rejection_threshold':      [10,20], 
+        'time_rejection_threshold': [10,20],
+        'nirspec_mask_width':       [8,20],
     }
 
 
