@@ -97,20 +97,20 @@ def main():
 
     # 3) parameter ranges & order SWEEP OVER THESE PARAMETERS
     param_ranges = {
-        'time_window':              [5,7],
-        'box_size':                 [10,20],
-        'jump_threshold':           [10,20],
-        'rejection_threshold':      [10,20],
-        'time_jump_threshold':      [10,20],
-        'nirspec_mask_width':       [8,20],
+        'time_window':              [3,5,7],
+        'box_size':                 [10,15,20],
+        'jump_threshold':           [10,15,20],
+        'time_jump_threshold':      [10,15,20],
+        'time_rejection_threshold': [10,15,20],
+        'nirspec_mask_width':       [8,15,20],
     }
 
     param_order = [
         'time_window',
         'box_size',
         'jump_threshold',
-        'rejection_threshold',
         'time_jump_threshold',
+        'time_rejection_threshold',
         'nirspec_mask_width',
     ]
 
@@ -128,10 +128,10 @@ def main():
 
         # ─── Build the kwargs that run_stage1 knows ─────────────────────────────
         run_kwargs = {
-            # Up-the-ramp sigma threshold
-            'rejection_threshold':      params['jump_threshold'],
+            'jump_threshold':           params['jump_threshold'],
+            'time_jump_threshold':      params['time_jump_threshold'],
             # Time-domain sigma threshold
-            'time_rejection_threshold': params['time_jump_threshold'],
+            'time_rejection_threshold': params['time_rejection_threshold'],
             # NIRSpec mask width for the OneOverFStep
             'nirspec_mask_width':       params['nirspec_mask_width'],
             # Everything else (time_window) goes under the JumpStep sub-dict:
@@ -165,8 +165,8 @@ def main():
         "time_window\t"
         "box_size\t"
         "jump_threshold\t"
-        "rejection_threshold\t"
         "time_jump_threshold\t"
+        "time_rejection_threshold\t"
         "nirspec_mask_width\t"
         "duration_s\t"
         "J\n"
@@ -191,8 +191,8 @@ def main():
                 f"{trial_params['time_window']}\t"
                 f"{trial_params['box_size']}\t"
                 f"{trial_params['jump_threshold']}\t"
-                f"{trial_params['rejection_threshold']}\t"
                 f"{trial_params['time_jump_threshold']}\t"
+                f"{trial_params['time_rejection_threshold']}\t"
                 f"{trial_params['nirspec_mask_width']}\t"
                 f"{dt:.1f}\t"
                 f"{J:.6f}\n"
