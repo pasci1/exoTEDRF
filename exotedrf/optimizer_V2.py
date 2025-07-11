@@ -76,33 +76,24 @@ def cost_function(dm, w1=0.5, w2=0.5):
 
 
 
-def cost_function(st3):
+
+def cost_function(st3_model):
     """
     Compute cost on Stage 3 output.
-    Minimiert Streuung der Weißlichtkurve, extrahiert aus dem finalen Spektrum.
+    Expects st3_model as numpy array of flux values (1D or 2D).
+    If 2D, sums across wavelength to get the white-light curve.
+    Returns relative scatter = std/median.
     """
-    # Typische Outputs: dict mit Key 'flux'
-    if isinstance(st3, dict):
-        # Die meisten Pipelines nutzen 'flux'
-        flux = np.array(st3.get('flux', None))
-        if flux is None:
-            raise ValueError("Stage3 Output: Kein 'flux' gefunden!")
-    elif hasattr(st3, 'flux'):
-        flux = np.array(st3.flux)
-    else:
-        raise ValueError("Stage3 Output hat kein flux-Attribut!")
-
+    flux = np.asarray(st3_model)
     if flux.ndim == 1:
-        # Wenn es wirklich nur 1D ist (z.B. mean spektrum)
-        scatter = np.nanstd(flux) / np.abs(np.nanmedian(flux))
-        return scatter
+        wl = flux
     elif flux.ndim == 2:
-        # Zeitreihen: [nints, nwave]
-        white = np.nansum(flux, axis=1)
-        scatter = np.nanstd(white) / np.abs(np.nanmedian(white))
-        return scatter
+        wl = np.nansum(flux, axis=1)
     else:
-        raise ValueError("Stage 3 flux hat unerwartete Dimension: %s" % (flux.shape,))
+        raise ValueError(f"Unexpected flux ndim = {flux.ndim}")
+
+    # relative Streuung
+    return np.nanstd(wl) / abs(np.nanmedian(wl))
 
 
 
