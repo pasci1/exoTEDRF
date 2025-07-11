@@ -184,20 +184,23 @@ def main():
 
             t0 = time.perf_counter()
 
-            # Stage 1: use correct kw names rejection_threshold/time_rejection_threshold :contentReference[oaicite:2]{index=2}
+            # Stage 1: collect YAML defaults and override
+            base_kwargs = cfg.get('stage1_kwargs', {}).copy()
+            base_kwargs.update({
+                'rejection_threshold':       trial_params['jump_threshold'],
+                'time_rejection_threshold':  trial_params['time_jump_threshold'],
+                'soss_inner_mask_width':     trial_params.get('soss_inner_mask_width'),
+                'soss_outer_mask_width':     trial_params.get('soss_outer_mask_width'),
+                'nirspec_mask_width':        trial_params.get('nirspec_mask_width'),
+                'miri_drop_groups':          trial_params.get('miri_drop_groups'),
+            })
             st1 = run_stage1(
                 [dm_slice],
                 mode=cfg['observing_mode'],
                 baseline_ints=baseline_ints,
                 save_results=False,
                 skip_steps=[],
-                rejection_threshold     = trial_params["jump_threshold"],
-                time_rejection_threshold= trial_params["time_jump_threshold"],
-                soss_inner_mask_width   = trial_params.get("soss_inner_mask_width"),
-                soss_outer_mask_width   = trial_params.get("soss_outer_mask_width"),
-                nirspec_mask_width      = trial_params.get("nirspec_mask_width"),
-                miri_drop_groups        = trial_params.get("miri_drop_groups"),
-                **cfg.get('stage1_kwargs', {})
+                **base_kwargs
             )
 
             # Stage 2: use space_thresh/time_thresh not space_outlier_threshold/... :contentReference[oaicite:3]{index=3}
@@ -238,7 +241,6 @@ def main():
             dt   = time.perf_counter() - t0
             cost = cost_function(st3_model)
 
-        
             print(cost)
             print(
                 "\n############################################",
