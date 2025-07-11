@@ -27,7 +27,6 @@ def compute_white_light(dm):
     wl = np.nansum(data.reshape(data.shape[0], -1), axis=1)
     return wl
 
-
 def compute_spectral(dm):
     """
     Extract a toy spectral lightcurve: mean over spatial axis for each integration,
@@ -50,7 +49,6 @@ def compute_spectral(dm):
     else:
         raise ValueError(f"Unexpected data dimensions {data.ndim} in compute_spectral")
     return spec
-
 
 def cost_function(dm, w1=0.5, w2=0.5):
     """
@@ -138,10 +136,10 @@ def main():
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
             'time_window':              [3,5,7],
-            #'thresh':                   list(range(5,15,5)),
-            #'rejection_threshold':      list(range(5,15,5)), 
-            #'time_rejection_threshold': list(range(5,15,5)),            
-            #"nirspec_mask_width":       list(range(5,15,5)),
+            'thresh':                   list(range(5,15,5)),
+            'rejection_threshold':      list(range(5,15,5)), 
+            'time_rejection_threshold': list(range(5,15,5)),            
+            "nirspec_mask_width":       list(range(5,15,5)),
         })
     else:
         param_ranges.update({
@@ -153,10 +151,10 @@ def main():
         })
     # always sweep these
     param_ranges.update({
-        #"space_outlier_threshold": list(range(5,10,5)),
-        #"time_outlier_threshold":  list(range(5,10,5)),
-        #"pca_components":          list(range(5,10,5)),
-        #"extract_width":           list(range(5,10,5)),
+        "space_outlier_threshold": list(range(5,10,5)),
+        "time_outlier_threshold":  list(range(5,10,5)),
+        "pca_components":          list(range(5,10,5)),
+        "extract_width":           list(range(5,10,5)),
     })
 
     param_order = list(param_ranges.keys())
@@ -166,6 +164,25 @@ def main():
 
     logf = open("Cost_function_V2.txt","w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
+
+    # --------- Stage Parameter Mapping ---------
+    # Pass only relevant params to each Stage
+    stage1_keys = [
+        'rejection_threshold', 'time_rejection_threshold',
+        'nirspec_mask_width', 'soss_inner_mask_width',
+        'soss_outer_mask_width', 'miri_drop_groups', 'jump_threshold', 'time_jump_threshold',
+        # Add other stage1-specific parameters here if needed
+    ]
+    stage2_keys = [
+        'space_outlier_threshold', 'time_outlier_threshold', 'pca_components',
+        'thresh', 'box_size', 'time_window',
+        'miri_trace_width', 'miri_background_width'
+        # Add other stage2-specific parameters here if needed
+    ]
+    stage3_keys = [
+        'extract_width'
+        # Add other stage3-specific parameters here if needed
+    ]
 
     # coordinate‐descent
     for key in param_order:
@@ -179,65 +196,52 @@ def main():
                 "\n############################################\n",
                 flush=True
             )            
-            
+
             trial_params = current.copy()
             trial_params[key] = trial
             baseline_ints = list(range(dm_slice.data.shape[0]))
 
             t0 = time.perf_counter()
 
-            # ─── Build the kwargs that run_stage1 knows ─────────────────────────────
-            run_kwargs = {
-                #'rejection_threshold':       trial_params['rejection_threshold'],
-                #'time_rejection_threshold':  trial_params['time_rejection_threshold'],
-                #'soss_inner_mask_width':     trial_params.get('soss_inner_mask_width'),
-                #'soss_outer_mask_width':     trial_params.get('soss_outer_mask_width'),
-                #'nirspec_mask_width':        trial_params['nirspec_mask_width'],
-                #'miri_drop_groups':          trial_params.get('miri_drop_groups'),
-                'JumpStep': {
-                    'time_window': trial_params['time_window']
-                }
-            }
+            # ----------- Build Stage kwargs dynamisch -----------
+            s1_args = {k: trial_params[k] for k in stage1_keys if k in trial_params}
+            s2_args = {k: trial_params[k] for k in stage2_keys if k in trial_params}
+            s3_args = {k: trial_params[k] for k in stage3_keys if k in trial_params}
 
-            # Sanity check
-            print("-----------------------------------------------------------------------------------------------------time_window =", run_kwargs["JumpStep"]["time_window"])
+            # Speziell für JumpStep (nur wenn time_window übergeben wird)
+            if "time_window" in trial_params:
+                s1_args["JumpStep"] = {"time_window": trial_params["time_window"]}
 
-            # ─── Run Stage 1 with clean kwargs ──────────────────────────────────────
+            # Stage 1 run
             st1 = run_stage1(
                 [dm_slice],
                 mode=cfg['observing_mode'],
                 baseline_ints=baseline_ints,
                 save_results=False,
                 skip_steps=[],
-                **run_kwargs
+                **s1_args
             )
 
-            # Stage 2: use space_thresh/time_thresh not space_outlier_threshold/... :contentReference[oaicite:3]{index=3}
+            # Stage 2 run
             st2, centroids = run_stage2(
                 st1,
                 mode=cfg['observing_mode'],
                 baseline_ints=baseline_ints,
                 save_results=False,
                 skip_steps=['BadPixStep','PCAReconstructStep'],
-                #space_thresh     = trial_params["space_outlier_threshold"],
-                #time_thresh      = trial_params["time_outlier_threshold"],
-                #pca_components   = trial_params["pca_components"],
-                #soss_inner_mask_width   = trial_params.get("soss_inner_mask_width"),
-                #soss_outer_mask_width   = trial_params.get("soss_outer_mask_width"),
-                #nirspec_mask_width      = trial_params.get("nirspec_mask_width"),
-                #miri_trace_width        = trial_params.get("miri_trace_width"),
-                #miri_background_width   = trial_params.get("miri_background_width"),
+                **s2_args,
                 **cfg.get('stage2_kwargs', {})
             )
             if isinstance(centroids, np.ndarray):
                 centroids = pd.DataFrame(centroids.T, columns=['xpos','ypos'])
 
+            # Stage 3 run
             st3 = run_stage3(
                 st2,
                 centroids=centroids,
                 save_results=False,
                 skip_steps=[],
-                #extract_width=trial_params["extract_width"],
+                **s3_args,
                 **cfg.get('stage3_kwargs', {})
             )
 
