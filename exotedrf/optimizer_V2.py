@@ -130,89 +130,85 @@ def main():
     param_ranges = {}
     if args.instrument == "NIRISS":
         param_ranges.update({
-            "soss_inner_mask_width": [20, 40, 80],
-            "soss_outer_mask_width": [35, 70, 140],
-            "jump_threshold": [5, 15, 30],
-            "time_jump_threshold": [3, 10, 20],
+            "soss_inner_mask_width": [20,40,80],
+            "soss_outer_mask_width": [35,70,140],
+            "jump_threshold":         [5,15,30],
+            "time_jump_threshold":    [3,10,20],
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            "nirspec_mask_width": [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32],
-            "jump_threshold": [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32],
-            "time_jump_threshold": [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32],
+            "nirspec_mask_width":     list(range(5,15,5)),
+            "jump_threshold":         list(range(5,15,5)),
+            "time_jump_threshold":    list(range(5,15,5)),
         })
     else:
         param_ranges.update({
-            "miri_drop_groups": [6, 12, 24],
-            "jump_threshold": [5, 15, 30],
-            "time_jump_threshold": [3, 10, 20],
-            "miri_trace_width": [10, 20, 40],
-            "miri_background_width": [7, 14, 28],
+            "miri_drop_groups":      [6,12,24],
+            "jump_threshold":        [5,15,30],
+            "time_jump_threshold":   [3,10,20],
+            "miri_trace_width":      [10,20,40],
+            "miri_background_width": [7,14,28],
         })
+    # always sweep these
     param_ranges.update({
-        "space_outlier_threshold": [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32],
-        "time_outlier_threshold": [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32],
-        "pca_components": [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32],
-        "extract_width": [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60],
+        "space_outlier_threshold": list(range(5,15,5)),
+        "time_outlier_threshold":  list(range(5,15,5)),
+        "pca_components":          list(range(5,15,5)),
+        "extract_width":           list(range(5,15,5)),
     })
 
     param_order = list(param_ranges.keys())
-    current     = {k: int(np.median(v)) for k, v in param_ranges.items()}
+    current     = {k: int(np.median(v)) for k,v in param_ranges.items()}
     total_steps = sum(len(v) for v in param_ranges.values())
     count       = 1
 
-    logf = open("Cost_function_V2.txt", "w")
+    logf = open("Cost_function_V2.txt","w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
-    # coordinate-descent
+    # coordinate‐descent
     for key in param_order:
-        print(
-            f"\n→ Optimizing {key} (fixed={{" + ", ".join(f"{k}={current[k]}" for k in current if k!=key) + "}})",
-            flush=True
-        )
+        fancyprint(f"\n→ Optimizing {key} (others fixed = { {k:current[k] for k in current if k!=key} })")
         best_cost, best_val = None, current[key]
 
         for trial in param_ranges[key]:
-            print(
-                "\n############################################",
-                f"\n Step: {count}/{total_steps} starting {key}={trial}",
-                "\n############################################\n",
-                flush=True
-            )
+            print(f"\n#### Step {count}/{total_steps}: {key}={trial} ####\n", flush=True)
             trial_params = current.copy()
             trial_params[key] = trial
-
-            # only start & end integrations
             baseline_ints = [0, K]
 
             t0 = time.perf_counter()
+
+            # Stage 1: use correct kw names rejection_threshold/time_rejection_threshold :contentReference[oaicite:2]{index=2}
             st1 = run_stage1(
                 [dm_slice],
                 mode=cfg['observing_mode'],
                 baseline_ints=baseline_ints,
-                save_results=False, skip_steps=[],
-                jump_threshold=trial_params.get("jump_threshold"),
-                time_jump_threshold=trial_params.get("time_jump_threshold"),
-                soss_inner_mask_width=trial_params.get("soss_inner_mask_width"),
-                soss_outer_mask_width=trial_params.get("soss_outer_mask_width"),
-                nirspec_mask_width=trial_params.get("nirspec_mask_width"),
-                miri_drop_groups=trial_params.get("miri_drop_groups"),
+                save_results=False,
+                skip_steps=[],
+                rejection_threshold     = trial_params["jump_threshold"],
+                time_rejection_threshold= trial_params["time_jump_threshold"],
+                soss_inner_mask_width   = trial_params.get("soss_inner_mask_width"),
+                soss_outer_mask_width   = trial_params.get("soss_outer_mask_width"),
+                nirspec_mask_width      = trial_params.get("nirspec_mask_width"),
+                miri_drop_groups        = trial_params.get("miri_drop_groups"),
                 **cfg.get('stage1_kwargs', {})
             )
+
+            # Stage 2: use space_thresh/time_thresh not space_outlier_threshold/... :contentReference[oaicite:3]{index=3}
             st2, centroids = run_stage2(
                 st1,
-                baseline_ints=baseline_ints,
                 mode=cfg['observing_mode'],
+                baseline_ints=baseline_ints,
                 save_results=False,
-                skip_steps=['BadPixStep', 'PCAReconstructStep'],
-                space_outlier_threshold=trial_params["space_outlier_threshold"],
-                time_outlier_threshold=trial_params["time_outlier_threshold"],
-                pca_components=trial_params["pca_components"],
-                soss_inner_mask_width=trial_params.get("soss_inner_mask_width"),
-                soss_outer_mask_width=trial_params.get("soss_outer_mask_width"),
-                nirspec_mask_width=trial_params.get("nirspec_mask_width"),
-                miri_trace_width=trial_params.get("miri_trace_width"),
-                miri_background_width=trial_params.get("miri_background_width"),
+                skip_steps=['BadPixStep','PCAReconstructStep'],
+                space_thresh     = trial_params["space_outlier_threshold"],
+                time_thresh      = trial_params["time_outlier_threshold"],
+                pca_components   = trial_params["pca_components"],
+                soss_inner_mask_width   = trial_params.get("soss_inner_mask_width"),
+                soss_outer_mask_width   = trial_params.get("soss_outer_mask_width"),
+                nirspec_mask_width      = trial_params.get("nirspec_mask_width"),
+                miri_trace_width        = trial_params.get("miri_trace_width"),
+                miri_background_width   = trial_params.get("miri_background_width"),
                 **cfg.get('stage2_kwargs', {})
             )
             if isinstance(centroids, np.ndarray):
@@ -221,18 +217,15 @@ def main():
             st3 = run_stage3(
                 st2,
                 centroids=centroids,
-                save_results=False, skip_steps=[],
+                save_results=False,
+                skip_steps=[],
                 extract_width=trial_params["extract_width"],
                 **cfg.get('stage3_kwargs', {})
             )
 
-            if isinstance(st3, dict):
-                st3_model = next(iter(st3.values()))
-            else:
-                st3_model = st3
-
             dt   = time.perf_counter() - t0
-            cost = cost_function(st3_model)
+            cost = cost_function(st3)
+
         
             print(cost)
             print(
