@@ -271,21 +271,23 @@ def main():
                 **cfg.get('stage3_kwargs', {})
             )
 
-            # unwrap dict returned by run_stage3 if necessary
-            if isinstance(st3, dict):
-                st3_model = next(iter(st3.values()))
-            else:
-                st3_model = st3
+            # ==== Änderung beginnt hier: Robust unwrap für Stage 3 Output ====
+            st3_model = st3
+            # Falls dict, nimm den ersten Value (z.B. NIRSpec: {'NRS1': Model, ...})
+            if isinstance(st3_model, dict):
+                st3_model = next(iter(st3_model.values()))
+            # Falls JWST-Model: versuche auf die .data zuzugreifen (wichtig!)
+            if hasattr(st3_model, "data"):
+                st3_model = st3_model.data
+            # Falls immer noch nicht np.array: versuch es zu casten
+            st3_model = np.asarray(st3_model)
+            # ==== Änderung endet hier ====
 
             dt   = time.perf_counter() - t0
-
 
             print("DEBUG st3_model type:", type(st3_model))
             if isinstance(st3_model, dict):
                 print("DEBUG st3_model keys:", st3_model.keys())
-
-
-
 
             cost = cost_function(st3_model)
 
@@ -307,7 +309,7 @@ def main():
                 best_cost, best_val = cost, trial
 
         current[key] = best_val
-        fancyprint(f"✔ Best {key} = {best_val} (cost={best_cost:.6f})")
+        fancyprint(f"Best {key} = {best_val} (cost={best_cost:.6f})")
 
     logf.close()
     fancyprint("\n=== FINAL OPTIMUM ===\n")
