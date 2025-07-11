@@ -138,10 +138,10 @@ def main():
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
             'time_window':              [3,5,7],
-            'thresh':                   list(range(5,15,5)),
-            'rejection_threshold':      list(range(5,15,5)), 
-            'time_rejection_threshold': list(range(5,15,5)),            
-            "nirspec_mask_width":       list(range(5,15,5)),
+            #'thresh':                   list(range(5,15,5)),
+            #'rejection_threshold':      list(range(5,15,5)), 
+            #'time_rejection_threshold': list(range(5,15,5)),            
+            #"nirspec_mask_width":       list(range(5,15,5)),
         })
     else:
         param_ranges.update({
