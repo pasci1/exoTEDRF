@@ -137,9 +137,11 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            "nirspec_mask_width":     list(range(5,15,5)),
-            "jump_threshold":         list(range(5,15,5)),
-            "time_jump_threshold":    list(range(5,15,5)),
+            'time_window':              [3,5,7],
+            'thresh':                   list(range(5,15,5)),
+            'rejection_threshold':      list(range(5,15,5)), 
+            'time_rejection_threshold': list(range(5,15,5)),            
+            "nirspec_mask_width":       list(range(5,15,5)),
         })
     else:
         param_ranges.update({
@@ -187,12 +189,15 @@ def main():
             # Stage 1: collect YAML defaults and override
             base_kwargs = cfg.get('stage1_kwargs', {}).copy()
             base_kwargs.update({
-                'rejection_threshold':       trial_params['jump_threshold'],
-                'time_rejection_threshold':  trial_params['time_jump_threshold'],
+                'rejection_threshold':       trial_params['rejection_threshold'],
+                'time_rejection_threshold':  trial_params['time_rejection_threshold'],
                 'soss_inner_mask_width':     trial_params.get('soss_inner_mask_width'),
                 'soss_outer_mask_width':     trial_params.get('soss_outer_mask_width'),
-                'nirspec_mask_width':        trial_params.get('nirspec_mask_width'),
+                'nirspec_mask_width':        trial_params.get['nirspec_mask_width'],
                 'miri_drop_groups':          trial_params.get('miri_drop_groups'),
+                'JumpStep': {
+                    'time_window': params['time_window']
+                }            
             })
             st1 = run_stage1(
                 [dm_slice],
