@@ -22,9 +22,11 @@ def compute_white_light(dm):
     Extract the white-light curve (sum over all pixels) from a CubeModel-like dm,
     ignoring any NaNs.
     """
+    print("DEBUG [compute_white_light] input type:", type(dm))
     data = np.asarray(dm.data, dtype=float)
-    # sum over pixels, skipping NaNs
+    print("DEBUG [compute_white_light] data shape:", data.shape)
     wl = np.nansum(data.reshape(data.shape[0], -1), axis=1)
+    print("DEBUG [compute_white_light] wl shape:", wl.shape, "min/max:", np.nanmin(wl), np.nanmax(wl))
     return wl
 
 def compute_spectral(dm):
@@ -33,21 +35,23 @@ def compute_spectral(dm):
     ignoring NaNs. Supports 3D cube (time, rows, cols), 2D output (time, channels),
     and 1D spectra (time,).
     """
+    print("DEBUG [compute_spectral] input type:", type(dm))
     raw = dm.data if hasattr(dm, 'data') else dm
     data = np.asarray(raw, dtype=float)
-
+    print("DEBUG [compute_spectral] data shape:", data.shape)
     if data.ndim == 3:
-        # time x spatial x spatial -> time x spectral_channels
         reshaped = data.reshape(data.shape[0], data.shape[1], -1)
         spec = np.nanmean(reshaped, axis=2)
+        print("DEBUG [compute_spectral] 3D -> spec shape:", spec.shape)
     elif data.ndim == 2:
-        # already time x spectral
         spec = np.asarray(data, dtype=float)
+        print("DEBUG [compute_spectral] 2D -> spec shape:", spec.shape)
     elif data.ndim == 1:
-        # single channel per time
         spec = data.reshape(-1, 1)
+        print("DEBUG [compute_spectral] 1D -> spec shape:", spec.shape)
     else:
         raise ValueError(f"Unexpected data dimensions {data.ndim} in compute_spectral")
+    print("DEBUG [compute_spectral] spec min/max:", np.nanmin(spec), np.nanmax(spec))
     return spec
 
 def cost_function(dm, w1=0.5, w2=0.5):
@@ -57,25 +61,26 @@ def cost_function(dm, w1=0.5, w2=0.5):
       2) mean fractional scatter across spectral channels
     Uses nan-aware statistics to avoid NaNs propagating.
     """
+    print("DEBUG [cost_function] input type:", type(dm))
     wl = compute_white_light(dm)
     spec = compute_spectral(dm)
-
-    # compute fractional scatter, ignoring NaNs
     median_wl = np.nanmedian(wl)
     frac_wl = np.nanstd(wl) / abs(median_wl)
+    print("DEBUG [cost_function] frac_wl:", frac_wl)
 
     frac_specs = []
     for i in range(spec.shape[1]):
         channel = spec[:, i]
         median_ch = np.nanmedian(channel)
-        frac_specs.append(np.nanstd(channel) / abs(median_ch))
+        channel_scatter = np.nanstd(channel) / abs(median_ch)
+        frac_specs.append(channel_scatter)
+        print(f"DEBUG [cost_function] channel {i}: median={median_ch}, frac={channel_scatter}")
     frac_spec = np.nanmean(frac_specs)
+    print("DEBUG [cost_function] frac_spec:", frac_spec)
 
-    return w1 * frac_wl + w2 * frac_spec
-
-
-
-
+    total = w1 * frac_wl + w2 * frac_spec
+    print(f"DEBUG [cost_function] total cost: {total}")
+    return total
 
 def cost_function(st3_model):
     """
@@ -84,20 +89,19 @@ def cost_function(st3_model):
     If 2D, sums across wavelength to get the white-light curve.
     Returns relative scatter = std/median.
     """
+    print("DEBUG [cost_function st3_model] input type:", type(st3_model))
     flux = np.asarray(st3_model)
+    print("DEBUG [cost_function st3_model] flux shape:", flux.shape, "min/max:", np.nanmin(flux), np.nanmax(flux))
     if flux.ndim == 1:
         wl = flux
     elif flux.ndim == 2:
         wl = np.nansum(flux, axis=1)
     else:
         raise ValueError(f"Unexpected flux ndim = {flux.ndim}")
-
-    # relative Streuung
-    return np.nanstd(wl) / abs(np.nanmedian(wl))
-
-
-
-
+    std = np.nanstd(wl)
+    med = np.nanmedian(wl)
+    print("DEBUG [cost_function st3_model] wl shape:", wl.shape, "std:", std, "med:", med)
+    return std / abs(med)
 
 # ————————————————————————————————————————————————————————
 # 2) Main optimizer
@@ -117,18 +121,21 @@ def main():
         help="Which instrument to optimize"
     )
     args = parser.parse_args()
+    print("DEBUG [main] args:", args)
 
     # start global timer
     t0_total = time.perf_counter()
 
     # load config & discover segment files
     cfg = parse_config(args.config)
+    print("DEBUG [main] loaded cfg:", cfg)
     input_files = unpack_input_dir(
         cfg['input_dir'],
         mode=cfg['observing_mode'],
         filetag=cfg['input_filetag'],
         filter_detector=cfg['filter_detector']
     )
+    print("DEBUG [main] input_files:", input_files)
     if not input_files:
         fancyprint(f"[WARN] No files in {cfg['input_dir']}, globbing *.fits")
         input_files = sorted(glob.glob(os.path.join(cfg['input_dir'], "*.fits")))
@@ -141,6 +148,7 @@ def main():
         cfg['input_dir'],
         "jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
     )
+    print("DEBUG [main] opening segment file:", seg0)
     dm_full = datamodels.open(seg0)
     K       = min(60, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
@@ -149,6 +157,7 @@ def main():
     dm_slice.meta.exposure.integration_end   = K
     dm_slice.meta.exposure.nints = K
     dm_full.close()
+    print("DEBUG [main] dm_slice shape:", dm_slice.data.shape)
 
     # build parameter grid
     param_ranges = {}
@@ -183,9 +192,13 @@ def main():
         "extract_width":           list(range(5,10,5)),
     })
 
+    print("DEBUG [main] param_ranges:", param_ranges)
     param_order = list(param_ranges.keys())
+    print("DEBUG [main] param_order:", param_order)
     current     = {k: int(np.median(v)) for k,v in param_ranges.items()}
+    print("DEBUG [main] initial current param values:", current)
     total_steps = sum(len(v) for v in param_ranges.values())
+    print("DEBUG [main] total_steps:", total_steps)
     count       = 1
 
     logf = open("Cost_function_V2.txt","w")
@@ -213,6 +226,7 @@ def main():
     # coordinate‐descent
     for key in param_order:
         fancyprint(f"\n→ Optimizing {key} (others fixed = { {k:current[k] for k in current if k!=key} })")
+        print("DEBUG [main loop] optimizing key:", key)
         best_cost, best_val = None, current[key]
 
         for trial in param_ranges[key]:
@@ -225,7 +239,9 @@ def main():
 
             trial_params = current.copy()
             trial_params[key] = trial
+            print("DEBUG [trial] trial_params:", trial_params)
             baseline_ints = list(range(dm_slice.data.shape[0]))
+            print("DEBUG [trial] baseline_ints:", baseline_ints)
 
             t0 = time.perf_counter()
 
@@ -233,11 +249,22 @@ def main():
             s1_args = {k: trial_params[k] for k in stage1_keys if k in trial_params}
             s2_args = {k: trial_params[k] for k in stage2_keys if k in trial_params}
             s3_args = {k: trial_params[k] for k in stage3_keys if k in trial_params}
+            print("DEBUG [trial] s1_args:", s1_args)
+            print("DEBUG [trial] s2_args:", s2_args)
+            print("DEBUG [trial] s3_args:", s3_args)
 
             # Speziell für JumpStep (nur wenn time_window übergeben wird)
             if "time_window" in trial_params:
                 s1_args["JumpStep"] = {"time_window": trial_params["time_window"]}
+                print("DEBUG [trial] s1_args after JumpStep inject:", s1_args)
 
+            print("DEBUG [trial] calling run_stage1 with args:")
+            print("    [dm_slice] shape:", dm_slice.data.shape)
+            print("    mode:", cfg['observing_mode'])
+            print("    baseline_ints:", baseline_ints)
+            print("    save_results:", False)
+            print("    skip_steps:", [])
+            print("    kwargs:", s1_args)
             # Stage 1 run
             st1 = run_stage1(
                 [dm_slice],
@@ -247,8 +274,13 @@ def main():
                 skip_steps=[],
                 **s1_args
             )
+            print("DEBUG [trial] finished run_stage1, st1 type:", type(st1))
 
             # Stage 2 run
+            print("DEBUG [trial] calling run_stage2 with args:")
+            print("    st1 type:", type(st1))
+            print("    s2_args:", s2_args)
+            print("    stage2_kwargs:", cfg.get('stage2_kwargs', {}))
             st2, centroids = run_stage2(
                 st1,
                 mode=cfg['observing_mode'],
@@ -258,10 +290,17 @@ def main():
                 **s2_args,
                 **cfg.get('stage2_kwargs', {})
             )
+            print("DEBUG [trial] finished run_stage2, st2 type:", type(st2), "centroids type:", type(centroids))
             if isinstance(centroids, np.ndarray):
+                print("DEBUG [trial] centroids.shape:", centroids.shape)
                 centroids = pd.DataFrame(centroids.T, columns=['xpos','ypos'])
 
             # Stage 3 run
+            print("DEBUG [trial] calling run_stage3 with args:")
+            print("    st2 type:", type(st2))
+            print("    centroids type:", type(centroids))
+            print("    s3_args:", s3_args)
+            print("    stage3_kwargs:", cfg.get('stage3_kwargs', {}))
             st3 = run_stage3(
                 st2,
                 centroids=centroids,
@@ -270,28 +309,28 @@ def main():
                 **s3_args,
                 **cfg.get('stage3_kwargs', {})
             )
+            print("DEBUG [trial] finished run_stage3, st3 type:", type(st3))
 
             # ==== Änderung beginnt hier: Robust unwrap für Stage 3 Output ====
             st3_model = st3
             # Falls dict, nimm den ersten Value (z.B. NIRSpec: {'NRS1': Model, ...})
             if isinstance(st3_model, dict):
+                print("DEBUG [trial] st3_model is dict, keys:", st3_model.keys())
                 st3_model = next(iter(st3_model.values()))
             # Falls JWST-Model: versuche auf die .data zuzugreifen (wichtig!)
             if hasattr(st3_model, "data"):
+                print("DEBUG [trial] st3_model has .data, extracting data, shape:", st3_model.data.shape)
                 st3_model = st3_model.data
             # Falls immer noch nicht np.array: versuch es zu casten
             st3_model = np.asarray(st3_model)
+            print("DEBUG [trial] final st3_model shape:", st3_model.shape, "min/max:", np.nanmin(st3_model), np.nanmax(st3_model))
             # ==== Änderung endet hier ====
 
             dt   = time.perf_counter() - t0
 
-            print("DEBUG st3_model type:", type(st3_model))
-            if isinstance(st3_model, dict):
-                print("DEBUG st3_model keys:", st3_model.keys())
-
             cost = cost_function(st3_model)
 
-            print(cost)
+            print("DEBUG [trial] cost:", cost)
             print(
                 "\n############################################",
                 f"\n Step: {count}/{total_steps} completed (dt={dt:.1f}s)",
@@ -306,10 +345,12 @@ def main():
             )
 
             if best_cost is None or cost < best_cost:
+                print(f"DEBUG [trial] updating best: old={best_cost}, new={cost}, val={trial}")
                 best_cost, best_val = cost, trial
 
         current[key] = best_val
         fancyprint(f"Best {key} = {best_val} (cost={best_cost:.6f})")
+        print("DEBUG [main loop] after param sweep, current:", current)
 
     logf.close()
     fancyprint("\n=== FINAL OPTIMUM ===\n")
@@ -323,6 +364,7 @@ def main():
     m = (int(total) % 3600) // 60
     s = total % 60
     print(f"TOTAL optimization runtime: {h}h {m:02d}min {s:04.1f}s")
+    print("DEBUG [main] finished all, FINAL current:", current)
     # ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
