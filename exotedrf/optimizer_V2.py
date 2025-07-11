@@ -186,36 +186,30 @@ def main():
 
             t0 = time.perf_counter()
 
-            # Stage 1: collect YAML defaults and override
-            base_kwargs = cfg.get('stage1_kwargs', {}).copy()
-
-            # Make sure JumpStep subdict exists
-            base_kwargs.setdefault('JumpStep', {})
-
-            # Inject or update individual trial values
-            base_kwargs.update({
+            # ─── Build the kwargs that run_stage1 knows ─────────────────────────────
+            run_kwargs = {
                 'rejection_threshold':       trial_params['rejection_threshold'],
                 'time_rejection_threshold':  trial_params['time_rejection_threshold'],
                 'soss_inner_mask_width':     trial_params.get('soss_inner_mask_width'),
                 'soss_outer_mask_width':     trial_params.get('soss_outer_mask_width'),
                 'nirspec_mask_width':        trial_params['nirspec_mask_width'],
                 'miri_drop_groups':          trial_params.get('miri_drop_groups'),
-            })
+                'JumpStep': {
+                    'time_window': trial_params['time_window']
+                }
+            }
 
-            # Now safely update just the one key inside JumpStep
-            base_kwargs['JumpStep']['time_window'] = trial_params['time_window']
+            # Sanity check
+            print("-----------------------------------------------------------------------------------------------------time_window =", run_kwargs["JumpStep"]["time_window"])
 
-            print("-----------------------------------------------------------------------------------------------------time_window =", base_kwargs["JumpStep"]["time_window"])
-
-
-
+            # ─── Run Stage 1 with clean kwargs ──────────────────────────────────────
             st1 = run_stage1(
                 [dm_slice],
                 mode=cfg['observing_mode'],
                 baseline_ints=baseline_ints,
                 save_results=False,
                 skip_steps=[],
-                **base_kwargs
+                **run_kwargs
             )
 
             # Stage 2: use space_thresh/time_thresh not space_outlier_threshold/... :contentReference[oaicite:3]{index=3}

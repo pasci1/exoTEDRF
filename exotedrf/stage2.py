@@ -1965,7 +1965,7 @@ def run_stage2(results, mode, soss_background_model=None, baseline_ints=None, sa
     centroids : ndarray(fllat), str
         Centroids for all spectral orders.
     """
-
+    print('start running Stage 2 from Fork')
     # ============== DMS Stage 2 ==============
     # Spectroscopic processing.
     fancyprint('**Starting exoTEDRF Stage 2**')

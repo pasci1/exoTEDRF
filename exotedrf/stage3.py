@@ -1454,7 +1454,7 @@ def run_stage3(results, save_results=True, root_dir='./', force_redo=False, extr
     specra : dict
         1D stellar spectra for each wavelength bin at the native detector resolution.
     """
-
+    print('start running Stage 3 from Fork')
     # ============== DMS Stage 3 ==============
     # 1D spectral extraction.
     fancyprint('**Starting exoTEDRF Stage 3**')
