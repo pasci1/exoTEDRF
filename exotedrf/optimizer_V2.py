@@ -171,7 +171,13 @@ def main():
         best_cost, best_val = None, current[key]
 
         for trial in param_ranges[key]:
-            print(f"\n#### Step {count}/{total_steps}: {key}={trial} ####\n", flush=True)
+            print(
+                "\n############################################",
+                f"\n Step: {count}/{total_steps} starting {key}={trial}",
+                "\n############################################\n",
+                flush=True
+            )            
+            
             trial_params = current.copy()
             trial_params[key] = trial
             baseline_ints = [0, K]
@@ -223,8 +229,14 @@ def main():
                 **cfg.get('stage3_kwargs', {})
             )
 
+            # unwrap dict returned by run_stage3 if necessary
+            if isinstance(st3, dict):
+                st3_model = next(iter(st3.values()))
+            else:
+                st3_model = st3
+
             dt   = time.perf_counter() - t0
-            cost = cost_function(st3)
+            cost = cost_function(st3_model)
 
         
             print(cost)
