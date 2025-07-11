@@ -186,7 +186,7 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            'time_window':              [301,9,17],
+            'time_window':              [71,9,17],
             'thresh':                   list(range(5,15,5)),
             'rejection_threshold':      list(range(5,15,5)), 
             'time_rejection_threshold': list(range(5,15,5)),            
