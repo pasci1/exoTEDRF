@@ -7,11 +7,29 @@ import argparse
 import numpy as np
 import pandas as pd
 from jwst import datamodels
+import matplotlib.pyplot as plt
+import numpy as np
 
 from exotedrf.utils       import parse_config, unpack_input_dir, fancyprint
 from exotedrf.stage1      import run_stage1
 from exotedrf.stage2      import run_stage2
 from exotedrf.stage3      import run_stage3
+
+### for debuging
+def plot_stage3_output(st3_model, step_num, param_name, param_val):
+    # st3_model assumed to be dict with 'Flux' and 'Wave' arrays
+    flux = st3_model['Flux']
+    wave = st3_model['Wave']
+    
+    plt.figure(figsize=(8, 4))
+    plt.plot(wave, flux, marker='.', linestyle='-', alpha=0.7)
+    plt.xlabel('Wavelength (micron)')
+    plt.ylabel('Flux')
+    plt.title(f'Stage 3 Output - Step {step_num} ({param_name}={param_val})')
+    plt.tight_layout()
+    plt.savefig(f'stage3_output_{param_name}_{param_val}_step{step_num}.png')
+    plt.close()
+
 
 # ————————————————————————————————————————————————————————
 # 1) Cost function: weighted sum of white-light and spectral scatter
@@ -325,9 +343,10 @@ def main():
             st3_model = np.asarray(st3_model)
             print("DEBUG [trial] final st3_model shape:", st3_model.shape, "min/max:", np.nanmin(st3_model), np.nanmax(st3_model))
             # ==== Änderung endet hier ====
-
+ 
             dt   = time.perf_counter() - t0
 
+            plot_stage3_output(st3_model, step_num, param_name, param_val)
             cost = cost_function(st3_model)
 
             print("DEBUG [trial] cost:", cost)
