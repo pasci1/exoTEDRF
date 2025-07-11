@@ -151,10 +151,10 @@ def main():
         })
     # always sweep these
     param_ranges.update({
-        "space_outlier_threshold": list(range(5,15,5)),
-        "time_outlier_threshold":  list(range(5,15,5)),
-        "pca_components":          list(range(5,15,5)),
-        "extract_width":           list(range(5,15,5)),
+        "space_outlier_threshold": list(range(5,10,5)),
+        "time_outlier_threshold":  list(range(5,10,5)),
+        "pca_components":          list(range(5,10,5)),
+        "extract_width":           list(range(5,10,5)),
     })
 
     param_order = list(param_ranges.keys())
