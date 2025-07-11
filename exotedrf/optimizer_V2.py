@@ -219,14 +219,14 @@ def main():
                 baseline_ints=baseline_ints,
                 save_results=False,
                 skip_steps=['BadPixStep','PCAReconstructStep'],
-                space_thresh     = trial_params["space_outlier_threshold"],
-                time_thresh      = trial_params["time_outlier_threshold"],
-                pca_components   = trial_params["pca_components"],
-                soss_inner_mask_width   = trial_params.get("soss_inner_mask_width"),
-                soss_outer_mask_width   = trial_params.get("soss_outer_mask_width"),
-                nirspec_mask_width      = trial_params.get("nirspec_mask_width"),
-                miri_trace_width        = trial_params.get("miri_trace_width"),
-                miri_background_width   = trial_params.get("miri_background_width"),
+                #space_thresh     = trial_params["space_outlier_threshold"],
+                #time_thresh      = trial_params["time_outlier_threshold"],
+                #pca_components   = trial_params["pca_components"],
+                #soss_inner_mask_width   = trial_params.get("soss_inner_mask_width"),
+                #soss_outer_mask_width   = trial_params.get("soss_outer_mask_width"),
+                #nirspec_mask_width      = trial_params.get("nirspec_mask_width"),
+                #miri_trace_width        = trial_params.get("miri_trace_width"),
+                #miri_background_width   = trial_params.get("miri_background_width"),
                 **cfg.get('stage2_kwargs', {})
             )
             if isinstance(centroids, np.ndarray):
@@ -237,7 +237,7 @@ def main():
                 centroids=centroids,
                 save_results=False,
                 skip_steps=[],
-                extract_width=trial_params["extract_width"],
+                #extract_width=trial_params["extract_width"],
                 **cfg.get('stage3_kwargs', {})
             )
 
