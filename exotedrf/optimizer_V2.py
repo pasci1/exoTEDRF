@@ -188,6 +188,11 @@ def main():
 
             # Stage 1: collect YAML defaults and override
             base_kwargs = cfg.get('stage1_kwargs', {}).copy()
+
+            # Make sure JumpStep subdict exists
+            base_kwargs.setdefault('JumpStep', {})
+
+            # Inject or update individual trial values
             base_kwargs.update({
                 'rejection_threshold':       trial_params['rejection_threshold'],
                 'time_rejection_threshold':  trial_params['time_rejection_threshold'],
@@ -195,10 +200,15 @@ def main():
                 'soss_outer_mask_width':     trial_params.get('soss_outer_mask_width'),
                 'nirspec_mask_width':        trial_params['nirspec_mask_width'],
                 'miri_drop_groups':          trial_params.get('miri_drop_groups'),
-                'JumpStep': {
-                    'time_window': trial_params['time_window']
-                }            
             })
+
+            # Now safely update just the one key inside JumpStep
+            base_kwargs['JumpStep']['time_window'] = trial_params['time_window']
+
+            print("-----------------------------------------------------------------------------------------------------time_window =", base_kwargs["JumpStep"]["time_window"])
+
+
+
             st1 = run_stage1(
                 [dm_slice],
                 mode=cfg['observing_mode'],
