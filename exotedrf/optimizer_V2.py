@@ -193,7 +193,7 @@ def main():
                 'time_rejection_threshold':  trial_params['time_rejection_threshold'],
                 'soss_inner_mask_width':     trial_params.get('soss_inner_mask_width'),
                 'soss_outer_mask_width':     trial_params.get('soss_outer_mask_width'),
-                'nirspec_mask_width':        trial_params.get['nirspec_mask_width'],
+                'nirspec_mask_width':        trial_params['nirspec_mask_width'],
                 'miri_drop_groups':          trial_params.get('miri_drop_groups'),
                 'JumpStep': {
                     'time_window': params['time_window']
