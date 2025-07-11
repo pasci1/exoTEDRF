@@ -153,10 +153,10 @@ def main():
         })
     # always sweep these
     param_ranges.update({
-        "space_outlier_threshold": list(range(5,10,5)),
-        "time_outlier_threshold":  list(range(5,10,5)),
-        "pca_components":          list(range(5,10,5)),
-        "extract_width":           list(range(5,10,5)),
+        #"space_outlier_threshold": list(range(5,10,5)),
+        #"time_outlier_threshold":  list(range(5,10,5)),
+        #"pca_components":          list(range(5,10,5)),
+        #"extract_width":           list(range(5,10,5)),
     })
 
     param_order = list(param_ranges.keys())
@@ -188,12 +188,12 @@ def main():
 
             # ─── Build the kwargs that run_stage1 knows ─────────────────────────────
             run_kwargs = {
-                'rejection_threshold':       trial_params['rejection_threshold'],
-                'time_rejection_threshold':  trial_params['time_rejection_threshold'],
-                'soss_inner_mask_width':     trial_params.get('soss_inner_mask_width'),
-                'soss_outer_mask_width':     trial_params.get('soss_outer_mask_width'),
-                'nirspec_mask_width':        trial_params['nirspec_mask_width'],
-                'miri_drop_groups':          trial_params.get('miri_drop_groups'),
+                #'rejection_threshold':       trial_params['rejection_threshold'],
+                #'time_rejection_threshold':  trial_params['time_rejection_threshold'],
+                #'soss_inner_mask_width':     trial_params.get('soss_inner_mask_width'),
+                #'soss_outer_mask_width':     trial_params.get('soss_outer_mask_width'),
+                #'nirspec_mask_width':        trial_params['nirspec_mask_width'],
+                #'miri_drop_groups':          trial_params.get('miri_drop_groups'),
                 'JumpStep': {
                     'time_window': trial_params['time_window']
                 }
