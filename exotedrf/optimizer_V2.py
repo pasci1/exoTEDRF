@@ -287,6 +287,15 @@ def main():
                 st3_model = st3
 
             dt   = time.perf_counter() - t0
+
+
+            print("DEBUG st3_model type:", type(st3_model))
+            if isinstance(st3_model, dict):
+                print("DEBUG st3_model keys:", st3_model.keys())
+
+
+
+
             cost = cost_function(st3_model)
 
             print(cost)
