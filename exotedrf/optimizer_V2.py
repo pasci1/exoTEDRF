@@ -73,6 +73,41 @@ def cost_function(dm, w1=0.5, w2=0.5):
 
     return w1 * frac_wl + w2 * frac_spec
 
+
+
+
+def cost_function(st3):
+    """
+    Compute cost on Stage 3 output.
+    Minimiert Streuung der Weißlichtkurve, extrahiert aus dem finalen Spektrum.
+    """
+    # Typische Outputs: dict mit Key 'flux'
+    if isinstance(st3, dict):
+        # Die meisten Pipelines nutzen 'flux'
+        flux = np.array(st3.get('flux', None))
+        if flux is None:
+            raise ValueError("Stage3 Output: Kein 'flux' gefunden!")
+    elif hasattr(st3, 'flux'):
+        flux = np.array(st3.flux)
+    else:
+        raise ValueError("Stage3 Output hat kein flux-Attribut!")
+
+    if flux.ndim == 1:
+        # Wenn es wirklich nur 1D ist (z.B. mean spektrum)
+        scatter = np.nanstd(flux) / np.abs(np.nanmedian(flux))
+        return scatter
+    elif flux.ndim == 2:
+        # Zeitreihen: [nints, nwave]
+        white = np.nansum(flux, axis=1)
+        scatter = np.nanstd(white) / np.abs(np.nanmedian(white))
+        return scatter
+    else:
+        raise ValueError("Stage 3 flux hat unerwartete Dimension: %s" % (flux.shape,))
+
+
+
+
+
 # ————————————————————————————————————————————————————————
 # 2) Main optimizer
 # ————————————————————————————————————————————————————————
