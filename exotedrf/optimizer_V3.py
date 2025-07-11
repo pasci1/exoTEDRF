@@ -132,19 +132,34 @@ def main():
             skip_steps=[],
             extract_width=5,
         )
-        # Handle dicts or weird outputs
+        # ------- SUPER ROBUST TYP-UNWRAP -------
+        # Stage 3 Output (kann dict, Model, ndarray, etc sein)
+        print("DEBUG st3 type:", type(st3))
         if isinstance(st3, dict):
+            print("DEBUG st3 keys:", st3.keys())
             st3_model = next(iter(st3.values()))
         else:
             st3_model = st3
-        # If it's a model with .data, use .data
+        print("DEBUG st3_model type:", type(st3_model))
         if hasattr(st3_model, 'data'):
-            lc = st3_model.data
-        else:
+            lc = np.asarray(st3_model.data)
+            print("DEBUG st3_model.data shape:", lc.shape)
+        elif isinstance(st3_model, np.ndarray):
             lc = st3_model
+            print("DEBUG st3_model ndarray shape:", lc.shape)
+        else:
+            print("!! UNKNOWN LIGHTCURVE TYPE:", type(st3_model))
+            print("Dir geholfen hat: evaluate_one-debugging.")
+            raise RuntimeError("Stage 3 output unknown format: %s" % str(type(st3_model)))
+
+        if lc.ndim == 0:
+            raise ValueError("Lightcurve output is scalar!? Something is wrong.")
+
         dt = time.perf_counter() - t0
         J = cost_function(lc, params['w1'], params['w2'])
+        print(f"DEBUG J={J:.6f}, dt={dt:.2f}")
         return J, dt
+
 
     logfile = open("Cost_function.txt", "w")
     logfile.write(
