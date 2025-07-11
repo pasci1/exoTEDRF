@@ -201,7 +201,7 @@ def main():
     total = t1_total - t0_total
     h = int(total) // 3600
     m = (int(total) % 3600) // 60
-    s = total % 60
+    s = total % 60 
     print(f"TOTAL optimization runtime: {h}h {m:02d}min {s:04.1f}s")
 
     logfile = open("Cost_function.txt", "a")
