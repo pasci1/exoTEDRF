@@ -182,7 +182,7 @@ def main():
             
             trial_params = current.copy()
             trial_params[key] = trial
-            baseline_ints = [0, K]
+            baseline_ints = list(range(dm_slice.data.shape[0]))
 
             t0 = time.perf_counter()
 
