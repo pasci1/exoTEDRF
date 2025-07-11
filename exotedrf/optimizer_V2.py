@@ -16,19 +16,17 @@ from exotedrf.stage2      import run_stage2
 from exotedrf.stage3      import run_stage3
 
 ### for debuging
-def plot_stage3_output(st3_model, step_num, param_name, param_val):
-    # st3_model assumed to be dict with 'Flux' and 'Wave' arrays
-    flux = st3_model['Flux']
-    wave = st3_model['Wave']
-    
-    plt.figure(figsize=(8, 4))
-    plt.plot(wave, flux, marker='.', linestyle='-', alpha=0.7)
-    plt.xlabel('Wavelength (micron)')
-    plt.ylabel('Flux')
-    plt.title(f'Stage 3 Output - Step {step_num} ({param_name}={param_val})')
-    plt.tight_layout()
-    plt.savefig(f'stage3_output_{param_name}_{param_val}_step{step_num}.png')
-    plt.close()
+def plot_stage3_output_simple(data):
+    plt.figure()
+    if hasattr(data, 'shape') and len(data.shape) == 1:
+        plt.scatter(range(len(data)), data)
+    elif hasattr(data, 'shape') and len(data.shape) == 2:
+        # Plot the first column vs the second column if possible
+        plt.scatter(data[:,0], data[:,1])
+    else:
+        # Fallback: just plot the data directly
+        plt.plot(data)
+    plt.show()
 
 
 # ————————————————————————————————————————————————————————
@@ -346,7 +344,7 @@ def main():
  
             dt   = time.perf_counter() - t0
 
-            plot_stage3_output(st3_model, step_num, param_name, param_val)
+            plot_stage3_output_simple(st3_model)
             cost = cost_function(st3_model)
 
             print("DEBUG [trial] cost:", cost)
