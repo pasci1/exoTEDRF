@@ -196,7 +196,7 @@ def main():
                 'nirspec_mask_width':        trial_params['nirspec_mask_width'],
                 'miri_drop_groups':          trial_params.get('miri_drop_groups'),
                 'JumpStep': {
-                    'time_window': params['time_window']
+                    'time_window': trial_params['time_window']
                 }            
             })
             st1 = run_stage1(
