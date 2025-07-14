@@ -68,6 +68,18 @@ def main():
     dm_slice.meta.exposure.nints = K
     dm_full.close()
 
+    # Monkey-patch utils.get_nrs_trace_start to handle unknown gratings
+    import exotedrf.utils as utils
+    _orig_get = utils.get_nrs_trace_start
+    def _safe_get_nrs_trace_start(detector, subarray, grating):
+        base = grating.split('+')[0]
+        try:
+            return _orig_get(detector, subarray, base)
+        except ValueError:
+            # unknown grating: fallback to full-frame start
+            return 0
+    utils.get_nrs_trace_start = _safe_get_nrs_trace_start
+
     # Define parameter ranges
     param_ranges = {
         'rejection_threshold': list(range(5, 16, 5)),
