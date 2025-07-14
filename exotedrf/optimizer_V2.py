@@ -174,10 +174,10 @@ def main():
             st1 = run_stage1([dm_slice], mode=cfg['observing_mode'], baseline_ints=baseline_ints,flag_up_ramp=True,
                               save_results=False, skip_steps=[], **s1_args)
             st2, centroids = run_stage2(st1, mode=cfg['observing_mode'], baseline_ints=baseline_ints,
-                                        save_results=False, skip_steps=['BadPixStep','PCAReconstructStep'], **s2_args)
+                                        save_results=False, skip_steps=['BadPixStep','PCAReconstructStep'], **s2_args,**cfg.get('stage2_kwargs', {}))
             if isinstance(centroids, np.ndarray):
                 centroids = pd.DataFrame(centroids.T, columns=['xpos','ypos'])
-            st3 = run_stage3(st2, centroids=centroids, save_results=False, skip_steps=[], **s3_args)
+            st3 = run_stage3(st2, centroids=centroids, save_results=False, skip_steps=[], **s3_args,**cfg.get('stage3_kwargs', {}))
 
             print(
                 "\n############################################",
