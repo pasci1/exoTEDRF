@@ -114,7 +114,7 @@ def main():
         "extract_width": list(range(10, 11, 5)),
     })
 
-    print("################################", param_ranges)
+
 
     param_order = list(param_ranges.keys())
     current = {k: int(np.median(v)) for k, v in param_ranges.items()}
@@ -171,7 +171,7 @@ def main():
                 [dm_slice],
                 mode=cfg["observing_mode"],
                 baseline_ints=baseline_ints,
-                flag_up_ramp=True,
+                #flag_up_ramp=True,
                 save_results=False,
                 skip_steps=[],
                 **s1_args
