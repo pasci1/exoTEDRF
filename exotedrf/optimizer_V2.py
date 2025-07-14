@@ -76,7 +76,13 @@ def main():
     fancyprint(f"Using {len(input_files)} segment(s) from {cfg['input_dir']}")
 
     # Erstes Segment slice'en
-    seg0 = os.path.join(cfg["input_dir"], input_files[0].split(os.sep)[-1])
+    #seg0 = os.path.join(cfg["input_dir"], input_files[0].split(os.sep)[-1])
+
+    seg0 = os.path.join(
+        cfg['input_dir'],
+        "jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
+    )
+
     dm_full = datamodels.open(seg0)
     K = min(60, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
@@ -171,7 +177,7 @@ def main():
                 [dm_slice],
                 mode=cfg["observing_mode"],
                 baseline_ints=baseline_ints,
-                #flag_up_ramp=True,
+                flag_up_ramp=True,
                 save_results=False,
                 skip_steps=[],
                 **s1_args
