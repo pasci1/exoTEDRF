@@ -15,14 +15,16 @@ from exotedrf.stage2      import run_stage2
 from exotedrf.stage3      import run_stage3
 
 # ----------------------------------------
-# Robust cost (MAD-based) replacing σ/median
+# Robust cost (MAD-based), raw MAD as in Jupyter notebook
 # ----------------------------------------
 def cost_function(flux_array):
     """
-    Compute cost on Stage 3 output using Median Absolute Deviation (MAD).
-    Expects a 1D or 2D numpy array of flux values.
-    - If 2D: collapse to a white-light series by summing over axis=1.
-    - Drop NaNs, compute MAD and normalize by median.
+    Compute a robust cost on the Stage 3 output:
+      1) grab the Flux array
+      2) collapse to a white-light series if 2D
+      3) drop NaNs
+      4) compute median absolute deviation (MAD)
+      5) return raw MAD (not normalized)
     """
     arr = np.asarray(flux_array, dtype=float)
     # collapse 2D → white-light
@@ -36,10 +38,10 @@ def cost_function(flux_array):
     series = series[~np.isnan(series)]
     if series.size == 0:
         raise ValueError("No valid flux values after dropping NaNs")
+    # compute median and MAD
     med = np.median(series)
     mad = np.median(np.abs(series - med))
-    # return raw MAD (comparable to std/|med| up to a factor)
-    return mad # / np.abs(med)
+    return mad
 
 # ----------------------------------------
 # Main optimizer
@@ -101,10 +103,9 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            #'time_window':              [3,5],
+            # 'time_window':              [3,5],  # now used in JumpStep injection
             'rejection_threshold':      [5,10],
             'time_rejection_threshold': [5,10],
-            #"nirspec_mask_width":       [5,10],
         })
     else:
         param_ranges.update({
@@ -116,13 +117,10 @@ def main():
         })
     # always sweep these
     param_ranges.update({
-        #"space_outlier_threshold": list(range(5,15,5)),
-        #"time_outlier_threshold":  list(range(5,15,5)),
-        #"pca_components":          list(range(5,15,5)),
         "extract_width":           list(range(10,11,5)),
     })
 
-    print('################################',param_ranges)
+    print('################################', param_ranges)
 
     param_order = list(param_ranges.keys())
     current     = {k: int(np.median(v)) for k,v in param_ranges.items()}
@@ -153,8 +151,8 @@ def main():
         for trial in param_ranges[key]:
             fancyprint(f"Step {count}/{total_steps}: {key}={trial}")
             trial_params = {**current, key: trial}
-            #baseline_ints = [0, dm_slice.data.shape[0]-1]
 
+            # baseline ints
             nints = dm_slice.data.shape[0]
             baseline_ints = [0, nints-1]
 
@@ -163,35 +161,35 @@ def main():
             s1_args = {k: trial_params[k] for k in stage1_keys if k in trial_params}
             s2_args = {k: trial_params[k] for k in stage2_keys if k in trial_params}
             s3_args = {k: trial_params[k] for k in stage3_keys if k in trial_params}
-            # always enable up‐the‐ramp
-            #s1_args['flag_up_ramp'] = True
+
+            # speziell für JumpStep wie im Notebook
+            if 'time_window' in trial_params:
+                s1_args['JumpStep'] = {'time_window': trial_params['time_window']}
 
             print(
-                "\n############################################",
+                "
+############################################",
                 f"\n Step: {count}/{total_steps} starting {key}={trial}",
-                "\n############################################\n",
+                "
+############################################\n",
                 flush=True
-            )                 
+            )                
 
-            # run
-            st1 = run_stage1([dm_slice], mode=cfg['observing_mode'], baseline_ints=baseline_ints,flag_up_ramp=True,
-                              save_results=False, skip_steps=[], **s1_args)
-            st2, centroids = run_stage2(st1, mode=cfg['observing_mode'], baseline_ints=baseline_ints,
-                                        save_results=False, skip_steps=['BadPixStep','PCAReconstructStep'], **s2_args,**cfg.get('stage2_kwargs', {}))
+            # run stages
+            st1 = run_stage1([
+                dm_slice], mode=cfg['observing_mode'], baseline_ints=baseline_ints,
+                flag_up_ramp=True, save_results=False, skip_steps=[], **s1_args)
+            st2, centroids = run_stage2(
+                st1, mode=cfg['observing_mode'], baseline_ints=baseline_ints,
+                save_results=False, skip_steps=['BadPixStep','PCAReconstructStep'],
+                **s2_args, **cfg.get('stage2_kwargs', {}))
             if isinstance(centroids, np.ndarray):
                 centroids = pd.DataFrame(centroids.T, columns=['xpos','ypos'])
-            st3 = run_stage3(st2, centroids=centroids, save_results=False, skip_steps=[], **s3_args,**cfg.get('stage3_kwargs', {}))
+            st3 = run_stage3(
+                st2, centroids=centroids, save_results=False, skip_steps=[],
+                **s3_args, **cfg.get('stage3_kwargs', {}))
 
-            print(
-                "\n############################################",
-                f"\n Step: {count}/{total_steps} completed (dt={dt:.1f}s)",
-                "\n############################################\n",
-                flush=True
-            )
-
-
-
-            # extract numpy flux
+            # extract flux
             model = st3
             if isinstance(model, dict):
                 model = next(iter(model.values()))
@@ -203,7 +201,9 @@ def main():
             cost = cost_function(arr)
             fancyprint(f"→ cost = {cost:.6f} in {dt:.1f}s")
 
-            logf.write("\t".join(str(trial_params[k]) for k in param_order) + f"\t{dt:.1f}\t{cost:.6f}\n")
+            # log
+            logf.write("\t".join(str(trial_params[k]) for k in param_order)
+                       + f"\t{dt:.1f}\t{cost:.6f}\n")
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
             count += 1
@@ -215,7 +215,7 @@ def main():
     fancyprint(current)
     fancyprint("Log saved to Cost_function_V2.txt")
 
-    # total time
+    # total runtime
     t1 = time.perf_counter() - t0_total
     h, m = divmod(int(t1), 3600)
     m, s = divmod(m, 60)
