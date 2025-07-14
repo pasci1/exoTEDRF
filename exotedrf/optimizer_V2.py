@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 
+
 import os
+
+os.environ.setdefault('CRDS_PATH', os.path.join(os.getcwd(),'Optimize_WASP39b','crds_cache'))
+os.environ.setdefault('CRDS_SERVER_URL', 'https://jwst-crds.stsci.edu')
+os.environ.setdefault('CRDS_CONTEXT',    'jwst_1322.pmap')
+
+
+
 import glob
 import time
 import argparse
