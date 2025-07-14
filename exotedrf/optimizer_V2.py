@@ -127,10 +127,6 @@ def main():
     logf = open("Cost_function_V2.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
-    # Determine steps to skip from YAML
-    skip_steps = [step for step, val in cfg.items()
-                  if step.endswith("Step") and str(val).lower() == 'skip']
-
     stage1_keys = [
         'rejection_threshold','time_rejection_threshold',
         'nirspec_mask_width','soss_inner_mask_width',
@@ -160,7 +156,7 @@ def main():
             if 'time_window' in trial_params:
                 s1_args['JumpStep'] = {'time_window': trial_params['time_window']}
 
-                        # Stage 1 run exactly as in Jupyter Notebook, using YAML flags
+            # Stage 1 run exactly as in Jupyter Notebook
             st1 = run_stage1(
                 [dm_slice],
                 mode=cfg['observing_mode'],
@@ -170,7 +166,7 @@ def main():
                 **cfg.get('stage1_kwargs', {}),
                 **s1_args
             )
-            )
+
             st2, centroids = run_stage2(
                 st1,
                 mode=cfg['observing_mode'],
