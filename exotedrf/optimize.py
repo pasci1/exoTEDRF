@@ -191,6 +191,8 @@ def main():
             skip_steps=skip_steps,
             **run_kwargs
         )
+        print("\033[1m\033[94mDEBUG [trial] finished run_stage1, results shape:\033[0m"  , np.array(results).shape)
+        print("\033[1m\033[94mDEBUG [trial] finished run_stage1, results:\033[0m"  , results)
         dt = time.perf_counter() - t0
 
         # ─── Score it ─────────────────────────────────────────────────────────
