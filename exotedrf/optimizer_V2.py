@@ -160,15 +160,16 @@ def main():
             if 'time_window' in trial_params:
                 s1_args['JumpStep'] = {'time_window': trial_params['time_window']}
 
+                        # Stage 1 run exactly as in Jupyter Notebook, using YAML flags
             st1 = run_stage1(
                 [dm_slice],
                 mode=cfg['observing_mode'],
                 baseline_ints=baseline_ints,
                 flag_up_ramp=True,
                 save_results=False,
-                skip_steps=[],
-                **s1_args,
-                **cfg.get('stage1_kwargs', {})
+                **cfg.get('stage1_kwargs', {}),
+                **s1_args
+            )
             )
             st2, centroids = run_stage2(
                 st1,
