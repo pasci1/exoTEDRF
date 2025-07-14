@@ -39,7 +39,7 @@ def cost_function(flux_array):
     med = np.median(series)
     mad = np.median(np.abs(series - med))
     # return raw MAD (comparable to std/|med| up to a factor)
-    return mad / np.abs(med)
+    return mad # / np.abs(med)
 
 # ----------------------------------------
 # Main optimizer
@@ -153,7 +153,10 @@ def main():
         for trial in param_ranges[key]:
             fancyprint(f"Step {count}/{total_steps}: {key}={trial}")
             trial_params = {**current, key: trial}
-            baseline_ints = [0, dm_slice.data.shape[0]-1]
+            #baseline_ints = [0, dm_slice.data.shape[0]-1]
+
+            nints = dm_slice.data.shape[0]
+            baseline_ints = [0, nints-1]
 
             t0 = time.perf_counter()
             # collect args
