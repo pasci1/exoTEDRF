@@ -68,17 +68,35 @@ def main():
     dm_slice.meta.exposure.nints = K
     dm_full.close()
 
-    # Monkey-patch utils.get_nrs_trace_start to handle unknown gratings
+    # Monkey-patch utils functions to handle edge cases
     import exotedrf.utils as utils
-    _orig_get = utils.get_nrs_trace_start
+    # 1) Unknown gratings fallback
+    _orig_trace_start = utils.get_nrs_trace_start
     def _safe_get_nrs_trace_start(detector, subarray, grating):
         base = grating.split('+')[0]
         try:
-            return _orig_get(detector, subarray, base)
+            return _orig_trace_start(detector, subarray, base)
         except ValueError:
-            # unknown grating: fallback to full-frame start
             return 0
     utils.get_nrs_trace_start = _safe_get_nrs_trace_start
+
+    # 2) Catch centroiding failures in NIRSpec and fallback to straight trace
+    _orig_centroid_nrspec = utils.get_centroids_nirspec
+    def _safe_get_centroids_nirspec(deepframe, xstart=0, xend=None,
+                                    save_results=True, save_filename=''):
+        try:
+            return _orig_centroid_nirspec(deepframe, xstart=xstart,
+                                           xend=xend, save_results=save_results,
+                                           save_filename=save_filename)
+        except Exception as e:
+            fancyprint(f"Warning in centroiding NIRSpec: {{e}}, using fallback", msg_type="WARNING")
+            dimy, dimx = deepframe.shape
+            if xend is None:
+                xend = dimx
+            xx = np.arange(xstart, xend)
+            yy = np.full_like(xx, dimy//2, dtype=float)
+            return np.array([xx, yy])
+    utils.get_centroids_nirspec = _safe_get_centroids_nirspec
 
     # Define parameter ranges
     param_ranges = {
