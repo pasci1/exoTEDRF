@@ -166,7 +166,7 @@ def main():
                 baseline_ints=baseline_ints,
                 flag_up_ramp=True,
                 save_results=False,
-                skip_steps=skip_steps,
+                skip_steps=[],
                 **s1_args,
                 **cfg.get('stage1_kwargs', {})
             )
