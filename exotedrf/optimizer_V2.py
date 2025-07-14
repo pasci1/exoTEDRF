@@ -101,7 +101,7 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            'time_window':              [3,5],
+            #'time_window':              [3,5],
             'rejection_threshold':      [5,10],
             'time_rejection_threshold': [5,10],
             #"nirspec_mask_width":       [5,10],
@@ -134,8 +134,7 @@ def main():
     stage1_keys = [
         'rejection_threshold','time_rejection_threshold',
         'nirspec_mask_width','soss_inner_mask_width',
-        'soss_outer_mask_width','miri_drop_groups',
-        'jump_threshold','time_jump_threshold'
+        'soss_outer_mask_width','miri_drop_groups'
     ]
     stage2_keys = [
         'space_outlier_threshold','time_outlier_threshold','pca_components',
@@ -160,12 +159,12 @@ def main():
             s2_args = {k: trial_params[k] for k in stage2_keys if k in trial_params}
             s3_args = {k: trial_params[k] for k in stage3_keys if k in trial_params}
             # always enable up‐the‐ramp
-            s1_args['flag_up_ramp'] = True
+            #s1_args['flag_up_ramp'] = True
 
             # run
             st1 = run_stage1([dm_slice], mode=cfg['observing_mode'], baseline_ints=baseline_ints,
                               save_results=False, skip_steps=[], **s1_args)
-            st2, centroids = run_stage2(st1, mode=cfg['observing_mode'], baseline_ints=baseline_ints,
+            st2, centroids = run_stage2(st1, mode=cfg['observing_mode'], baseline_ints=baseline_ints,flag_up_ramp=True,
                                         save_results=False, skip_steps=['BadPixStep','PCAReconstructStep'], **s2_args)
             if isinstance(centroids, np.ndarray):
                 centroids = pd.DataFrame(centroids.T, columns=['xpos','ypos'])
