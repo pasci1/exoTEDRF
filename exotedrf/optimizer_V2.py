@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 
-
 import os
-
-os.environ.setdefault('CRDS_PATH', os.path.join(os.getcwd(),'Optimize_WASP39b','crds_cache'))
+# Set CRDS cache and context before any JWST imports
+os.environ.setdefault('CRDS_PATH', os.path.join(os.getcwd(), 'Optimize_WASP39b', 'crds_cache'))
 os.environ.setdefault('CRDS_SERVER_URL', 'https://jwst-crds.stsci.edu')
 os.environ.setdefault('CRDS_CONTEXT',    'jwst_1322.pmap')
-
-
 
 import glob
 import time
@@ -54,7 +51,7 @@ def main():
         description="Coordinate‐descent optimizer for exoTEDRF Stages 1–3"
     )
     parser.add_argument(
-        "--config", default="run_DMS.yaml",
+        "--config", default="run_WASP39b.yaml",
         help="Path to your DMS config YAML"
     )
     parser.add_argument(
@@ -69,152 +66,134 @@ def main():
     cfg = parse_config(args.config)
     fancyprint(f"DEBUG [main] loaded cfg: {cfg}")
 
-    # Eingabedateien ermitteln
+    # Input discovery
     input_files = unpack_input_dir(
-        cfg["input_dir"],
-        mode=cfg["observing_mode"],
-        filetag=cfg["input_filetag"],
-        filter_detector=cfg["filter_detector"],
+        cfg['input_dir'],
+        mode=cfg['observing_mode'],
+        filetag=cfg['input_filetag'],
+        filter_detector=cfg['filter_detector']
     )
     if not input_files:
         fancyprint(f"[WARN] No files in {cfg['input_dir']}, globbing *.fits")
-        input_files = sorted(glob.glob(os.path.join(cfg["input_dir"], "*.fits")))
+        input_files = sorted(glob.glob(os.path.join(cfg['input_dir'], "*.fits")))
     if not input_files:
         raise RuntimeError(f"No FITS found in {cfg['input_dir']}")
     fancyprint(f"Using {len(input_files)} segment(s) from {cfg['input_dir']}")
 
-    # Erstes Segment slice'en
-    #seg0 = os.path.join(cfg["input_dir"], input_files[0].split(os.sep)[-1])
-
+    # Use same segment as in notebook
     seg0 = os.path.join(
         cfg['input_dir'],
         "jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
     )
-
     dm_full = datamodels.open(seg0)
     K = min(60, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.integration_start = 1
-    dm_slice.meta.exposure.integration_end = K
+    dm_slice.meta.exposure.integration_end   = K
     dm_slice.meta.exposure.nints = K
     dm_full.close()
     fancyprint(f"DEBUG [main] dm_slice shape: {dm_slice.data.shape}")
 
-    # Parameter‑Grid aufbauen
+    # Build parameter grid
     param_ranges = {}
     if args.instrument == "NIRISS":
         param_ranges.update({
             "soss_inner_mask_width": [20, 40, 80],
             "soss_outer_mask_width": [35, 70, 140],
-            "jump_threshold": [5, 15, 30],
-            "time_jump_threshold": [3, 10, 20],
+            "jump_threshold":         [5, 15, 30],
+            "time_jump_threshold":    [3, 10, 20],
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            "rejection_threshold": [5, 10],
+            "rejection_threshold":      [5, 10],
             "time_rejection_threshold": [5, 10],
         })
     else:  # MIRI
         param_ranges.update({
-            "miri_drop_groups": [6, 12, 24],
-            "jump_threshold": [5, 15, 30],
-            "time_jump_threshold": [3, 10, 20],
-            "miri_trace_width": [10, 20, 40],
+            "miri_drop_groups":      [6, 12, 24],
+            "jump_threshold":        [5, 15, 30],
+            "time_jump_threshold":   [3, 10, 20],
+            "miri_trace_width":      [10, 20, 40],
             "miri_background_width": [7, 14, 28],
         })
-    # immer mit sweep
-    param_ranges.update({
-        "extract_width": list(range(10, 11, 5)),
-    })
-
-
+    param_ranges.update({"extract_width": [10]})
 
     param_order = list(param_ranges.keys())
     current = {k: int(np.median(v)) for k, v in param_ranges.items()}
     total_steps = sum(len(v) for v in param_ranges.values())
 
-    # Logging
+    # Open log
     logf = open("Cost_function_V2.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
+    # Determine steps to skip from YAML
+    skip_steps = [step for step, val in cfg.items()
+                  if step.endswith("Step") and str(val).lower() == 'skip']
+
     stage1_keys = [
-        "rejection_threshold", "time_rejection_threshold",
-        "nirspec_mask_width", "soss_inner_mask_width",
-        "soss_outer_mask_width", "miri_drop_groups",
+        'rejection_threshold','time_rejection_threshold',
+        'nirspec_mask_width','soss_inner_mask_width',
+        'soss_outer_mask_width','miri_drop_groups'
     ]
     stage2_keys = [
-        "space_outlier_threshold", "time_outlier_threshold", "pca_components",
-        "time_window", "thresh", "box_size",
-        "miri_trace_width", "miri_background_width",
+        'space_outlier_threshold','time_outlier_threshold','pca_components',
+        'time_window','thresh','box_size',
+        'miri_trace_width','miri_background_width'
     ]
-    stage3_keys = ["extract_width"]
+    stage3_keys = ['extract_width']
 
     count = 1
-    # Koordinaten‐Abstieg
     for key in param_order:
-        fancyprint(
-            f"→ Optimizing {key} "
-            f"(fixed-other={{{', '.join([f'{k}:{current[k]}' for k in current if k != key])}}})"
-        )
+        fancyprint(f"→ Optimizing {key} (fixed-other={{{', '.join([f'{k}:{current[k]}' for k in current if k!=key])}}})")
         best_cost, best_val = None, current[key]
         for trial in param_ranges[key]:
             fancyprint(f"Step {count}/{total_steps}: {key}={trial}")
             trial_params = {**current, key: trial}
-
-            nints = dm_slice.data.shape[0]
-            baseline_ints = [0, nints - 1]
+            baseline_ints = [0, dm_slice.data.shape[0]-1]
 
             t0 = time.perf_counter()
             s1_args = {k: trial_params[k] for k in stage1_keys if k in trial_params}
             s2_args = {k: trial_params[k] for k in stage2_keys if k in trial_params}
             s3_args = {k: trial_params[k] for k in stage3_keys if k in trial_params}
-
-            # genau wie im Jupyter-Notebook: JumpStep für time_window
-            if "time_window" in trial_params:
-                s1_args["JumpStep"] = {"time_window": trial_params["time_window"]}
-
-            print(
-                "\n############################################",
-                f"\n Step: {count}/{total_steps} starting {key}={trial}",
-                "\n############################################\n",
-                flush=True
-            )
+            # Inject JumpStep as in notebook
+            if 'time_window' in trial_params:
+                s1_args['JumpStep'] = {'time_window': trial_params['time_window']}
 
             st1 = run_stage1(
                 [dm_slice],
-                mode=cfg["observing_mode"],
+                mode=cfg['observing_mode'],
                 baseline_ints=baseline_ints,
                 flag_up_ramp=True,
                 save_results=False,
-                skip_steps=[],
-                **s1_args
+                skip_steps=skip_steps,
+                **s1_args,
+                **cfg.get('stage1_kwargs', {})
             )
             st2, centroids = run_stage2(
                 st1,
-                mode=cfg["observing_mode"],
+                mode=cfg['observing_mode'],
                 baseline_ints=baseline_ints,
                 save_results=False,
-                skip_steps=["BadPixStep", "PCAReconstructStep"],
+                skip_steps=['BadPixStep', 'PCAReconstructStep'],
                 **s2_args,
-                **cfg.get("stage2_kwargs", {})
+                **cfg.get('stage2_kwargs', {})
             )
             if isinstance(centroids, np.ndarray):
-                centroids = pd.DataFrame(centroids.T, columns=["xpos", "ypos"])
+                centroids = pd.DataFrame(centroids.T, columns=['xpos','ypos'])
             st3 = run_stage3(
                 st2,
                 centroids=centroids,
                 save_results=False,
                 skip_steps=[],
                 **s3_args,
-                **cfg.get("stage3_kwargs", {})
+                **cfg.get('stage3_kwargs', {})
             )
 
-            # Flux‐Array extrahieren
             model = st3
             if isinstance(model, dict):
                 model = next(iter(model.values()))
-            if hasattr(model, "data"):
+            if hasattr(model, 'data'):
                 model = model.data
             arr = np.asarray(model)
 
@@ -229,7 +208,6 @@ def main():
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
             count += 1
-
         current[key] = best_val
         fancyprint(f"Best {key} = {best_val} (cost={best_cost:.6f})")
 
@@ -238,12 +216,10 @@ def main():
     fancyprint(current)
     fancyprint("Log saved to Cost_function_V2.txt")
 
-    # Gesamt­laufzeit
     t1 = time.perf_counter() - t0_total
     h, m = divmod(int(t1), 3600)
     m, s = divmod(m, 60)
     fancyprint(f"TOTAL runtime: {h}h {m:02d}m {s:04.1f}s")
-
 
 if __name__ == "__main__":
     main()
