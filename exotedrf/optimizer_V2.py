@@ -122,6 +122,8 @@ def main():
         "extract_width":           list(range(10,11,5)),
     })
 
+    print('################################',param_ranges)
+
     param_order = list(param_ranges.keys())
     current     = {k: int(np.median(v)) for k,v in param_ranges.items()}
     total_steps = sum(len(v) for v in param_ranges.values())
@@ -161,14 +163,30 @@ def main():
             # always enable up‐the‐ramp
             #s1_args['flag_up_ramp'] = True
 
+            print(
+                "\n############################################",
+                f"\n Step: {count}/{total_steps} starting {key}={trial}",
+                "\n############################################\n",
+                flush=True
+            )                 
+
             # run
-            st1 = run_stage1([dm_slice], mode=cfg['observing_mode'], baseline_ints=baseline_ints,
+            st1 = run_stage1([dm_slice], mode=cfg['observing_mode'], baseline_ints=baseline_ints,flag_up_ramp=True,
                               save_results=False, skip_steps=[], **s1_args)
-            st2, centroids = run_stage2(st1, mode=cfg['observing_mode'], baseline_ints=baseline_ints,flag_up_ramp=True,
+            st2, centroids = run_stage2(st1, mode=cfg['observing_mode'], baseline_ints=baseline_ints,
                                         save_results=False, skip_steps=['BadPixStep','PCAReconstructStep'], **s2_args)
             if isinstance(centroids, np.ndarray):
                 centroids = pd.DataFrame(centroids.T, columns=['xpos','ypos'])
             st3 = run_stage3(st2, centroids=centroids, save_results=False, skip_steps=[], **s3_args)
+
+            print(
+                "\n############################################",
+                f"\n Step: {count}/{total_steps} completed (dt={dt:.1f}s)",
+                "\n############################################\n",
+                flush=True
+            )
+
+
 
             # extract numpy flux
             model = st3
