@@ -188,7 +188,7 @@ def main():
                 baseline_ints=baseline_ints,
                 flag_up_ramp=True,
                 save_results=False,
-                skip_steps=['JumpStep'],
+                skip_steps=[],
                 **s1_args
             )
             st2, centroids = run_stage2(
