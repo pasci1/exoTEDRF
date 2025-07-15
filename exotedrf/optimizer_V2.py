@@ -109,8 +109,10 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            "rejection_threshold": [5, 10],
-            "time_rejection_threshold": [5, 10],
+            'time_window':              [3,5,7], # works
+            'rejection_threshold':      list(range(5,16,5)), # doesn't work
+            'time_rejection_threshold': list(range(5,16,5)), # works           
+            "nirspec_mask_width":       list(range(5,16,5)), # works
         })
     else:  # MIRI
         param_ranges.update({
@@ -120,9 +122,12 @@ def main():
             "miri_trace_width": [10, 20, 40],
             "miri_background_width": [7, 14, 28],
         })
-    # immer mit sweep
+    # always
     param_ranges.update({
-        "extract_width": list(range(10, 11, 5)),
+        #"space_outlier_threshold": list(range(5,16,5)), #off
+        #"time_outlier_threshold":  list(range(5,16,5)), #off
+        #"pca_components":          list(range(5,16,5)), #off
+        "extract_width": list(range(5, 16, 5)),
     })
 
 
@@ -183,7 +188,7 @@ def main():
                 baseline_ints=baseline_ints,
                 flag_up_ramp=True,
                 save_results=False,
-                skip_steps=[],
+                skip_steps=['JumpStep'],
                 **s1_args
             )
             st2, centroids = run_stage2(
