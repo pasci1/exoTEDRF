@@ -21,7 +21,7 @@ from exotedrf.stage2 import run_stage2
 from exotedrf.stage3 import run_stage3
 
 # ----------------------------------------
-# Robust cost (MAD-based), raw MAD wie im Notebook
+# cost (MAD-based)
 # ----------------------------------------
 def cost_function(flux_array):
     """
@@ -30,7 +30,7 @@ def cost_function(flux_array):
       2) collapse to a white-light series if 2D
       3) drop NaNs
       4) compute median absolute deviation (MAD)
-      5) return raw MAD (nicht normalisiert)
+      5) return raw MAD 
     """
     arr = np.asarray(flux_array, dtype=float)
     if arr.ndim == 2:
@@ -46,6 +46,10 @@ def cost_function(flux_array):
     mad = np.median(np.abs(series - med))
     return mad
 
+# ----------------------------------------
+# main
+# ----------------------------------------
+
 def main():
     parser = argparse.ArgumentParser(
         description="Coordinate‐descent optimizer for exoTEDRF Stages 1–3"
@@ -60,11 +64,11 @@ def main():
         help="Which instrument to optimize"
     )
     args = parser.parse_args()
-    fancyprint(f"DEBUG [main] args: {args}")
+
 
     t0_total = time.perf_counter()
     cfg = parse_config(args.config)
-    fancyprint(f"DEBUG [main] loaded cfg: {cfg}")
+
 
     # Eingabedateien ermitteln
     input_files = unpack_input_dir(
@@ -80,7 +84,7 @@ def main():
         raise RuntimeError(f"No FITS found in {cfg['input_dir']}")
     fancyprint(f"Using {len(input_files)} segment(s) from {cfg['input_dir']}")
 
-    # Erstes Segment slice'en
+    # Slice First segment
     #seg0 = os.path.join(cfg["input_dir"], input_files[0].split(os.sep)[-1])
 
     seg0 = os.path.join(
@@ -88,6 +92,7 @@ def main():
         "jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
     )
 
+    # determine integration number (slice) K=
     dm_full = datamodels.open(seg0)
     K = min(60, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
@@ -96,9 +101,9 @@ def main():
     dm_slice.meta.exposure.integration_end = K
     dm_slice.meta.exposure.nints = K
     dm_full.close()
-    fancyprint(f"DEBUG [main] dm_slice shape: {dm_slice.data.shape}")
 
-    # Parameter Grid aufbauen
+
+    # Parameter to SWEEP
     param_ranges = {}
     if args.instrument == "NIRISS":
         param_ranges.update({
@@ -122,7 +127,7 @@ def main():
             "miri_trace_width": [10, 20, 40],
             "miri_background_width": [7, 14, 28],
         })
-    # always
+    # always sweep
     param_ranges.update({
         #"space_outlier_threshold": list(range(5,16,5)), #off
         #"time_outlier_threshold":  list(range(5,16,5)), #off
@@ -152,7 +157,7 @@ def main():
     stage3_keys = ["extract_width"]
 
     count = 1
-    # Koordinaten‐Abstieg
+    # coordinate descent
     for key in param_order:
         fancyprint(
             f"→ Optimizing {key} "
@@ -171,7 +176,7 @@ def main():
             s2_args = {k: trial_params[k] for k in stage2_keys if k in trial_params}
             s3_args = {k: trial_params[k] for k in stage3_keys if k in trial_params}
 
-            # genau wie im Jupyter-Notebook: JumpStep für time_window
+            # time window
             if "time_window" in trial_params:
                 s1_args["JumpStep"] = {"time_window": trial_params["time_window"]}
 
@@ -211,7 +216,7 @@ def main():
                 **cfg.get("stage3_kwargs", {})
             )
 
-            # Flux‐Array extrahieren
+            # Flux‐Array 
             model = st3
             if isinstance(model, dict):
                 model = next(iter(model.values()))
@@ -239,7 +244,7 @@ def main():
     fancyprint(current)
     fancyprint("Log saved to Cost_function_V2.txt")
 
-    # Gesamt¬laufzeit
+    # total runtime
     t1 = time.perf_counter() - t0_total
     h, m = divmod(int(t1), 3600)
     m, s = divmod(m, 60)
