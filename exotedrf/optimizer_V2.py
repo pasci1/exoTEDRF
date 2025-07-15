@@ -127,7 +127,7 @@ def main():
             "miri_drop_groups": [6, 12, 24],
             "jump_threshold": [5, 15, 30],
             "time_jump_threshold": [3, 10, 20],
-            "miri_trace_width": [10, 20, 40],
+            "miri_trace_width": [10, 20, 40], 
             "miri_background_width": [7, 14, 28],
         })
     # always sweep
