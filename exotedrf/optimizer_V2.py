@@ -23,29 +23,6 @@ from exotedrf.stage3 import run_stage3
 # ----------------------------------------
 # cost (MAD-based)
 # ----------------------------------------
-def cost_function(flux_array):
-    """
-    Compute a robust cost on the Stage 3 output:
-      1) grab the Flux array
-      2) collapse to a white-light series if 2D
-      3) drop NaNs
-      4) compute median absolute deviation (MAD)
-      5) return raw MAD 
-    """
-    arr = np.asarray(flux_array, dtype=float)
-    if arr.ndim == 2:
-        series = np.nansum(arr, axis=1)
-    elif arr.ndim == 1:
-        series = arr.copy()
-    else:
-        raise ValueError(f"Unexpected flux ndim = {arr.ndim}")
-    series = series[~np.isnan(series)]
-    if series.size == 0:
-        raise ValueError("No valid flux values after dropping NaNs")
-    
-    med = np.median(series)
-    mad = np.median(np.abs(series - med))
-    return mad
 
 def cost_function(st3):
     """
@@ -53,13 +30,13 @@ def cost_function(st3):
       - MAD_white: MAD of the white-light curve (sum over wavelength)
       - MAD_spec : median over integrations of the per-integration spectral MAD
     """
-    w1 = 0.5
-    w2 = 0.5
+    w1 = 0.0
+    w2 = 1.0
     flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
 
     # 1) White-light MAD
-    white = np.nansum(flux, axis=1)               # sum over wavelength
-    white = white[~np.isnan(white)]
+    white = np.nansum(flux, axis=1)         # sum over wavelength
+    white = white[~np.isnan(white)]         # drop NANs
     med_w = np.median(white)
     mad_white = np.median(np.abs(white - med_w))
 
@@ -140,10 +117,10 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            'time_window':              [3,5,7,9,11,13,15,17,19], # works
-            #'rejection_threshold':      list(range(4,30,2)), # doesn't work
-            'time_rejection_threshold': list(range(4,30,2)), # works           
-            "nirspec_mask_width":       list(range(2,30,2)), # works
+            'time_window':              [15,17,19], # works
+            #'rejection_threshold':     list(range(4,9,2)), # works for Flag_up_ramp = True
+            'time_rejection_threshold': list(range(4,9,2)), # works           
+            "nirspec_mask_width":       list(range(16,21,2)), # works
         })
     else:  # MIRI
         param_ranges.update({
@@ -157,7 +134,7 @@ def main():
     param_ranges.update({
         #"space_outlier_threshold": list(range(5,16,5)), #off
         #"time_outlier_threshold":  list(range(5,16,5)), #off
-        "extract_width": list(range(5, 16, 2)),
+        "extract_width": list(range(1, 8, 2)),
     })
 
 
