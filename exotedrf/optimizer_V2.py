@@ -42,6 +42,7 @@ def cost_function(flux_array):
     series = series[~np.isnan(series)]
     if series.size == 0:
         raise ValueError("No valid flux values after dropping NaNs")
+    
     med = np.median(series)
     mad = np.median(np.abs(series - med))
     return mad
@@ -131,7 +132,6 @@ def main():
     param_ranges.update({
         #"space_outlier_threshold": list(range(5,16,5)), #off
         #"time_outlier_threshold":  list(range(5,16,5)), #off
-        #"pca_components":          list(range(5,16,5)), #off
         "extract_width": list(range(5, 16, 5)),
     })
 
@@ -150,7 +150,7 @@ def main():
         "soss_outer_mask_width", "miri_drop_groups",
     ]
     stage2_keys = [
-        "space_outlier_threshold", "time_outlier_threshold", "pca_components",
+        "space_outlier_threshold", "time_outlier_threshold", 
         "time_window", "thresh", "box_size",
         "miri_trace_width", "miri_background_width",
     ]
@@ -191,7 +191,7 @@ def main():
                 [dm_slice],
                 mode=cfg["observing_mode"],
                 baseline_ints=baseline_ints,
-                flag_up_ramp=True,
+                flag_up_ramp=False, # Problem
                 save_results=False,
                 skip_steps=[],
                 **s1_args
@@ -235,6 +235,13 @@ def main():
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
             count += 1
+
+            print(
+                "\n############################################",
+                f"\n Step: {count}/{total_steps} completed (dt={dt:.1f}s)",
+                "\n############################################\n",
+                flush=True
+            )            
 
         current[key] = best_val
         fancyprint(f"Best {key} = {best_val} (cost={best_cost:.6f})")
