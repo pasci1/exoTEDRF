@@ -47,6 +47,31 @@ def cost_function(flux_array):
     mad = np.median(np.abs(series - med))
     return mad
 
+def cost_function(st3):
+    """
+    Combined cost = w1 * MAD_white + w2 * MAD_spec
+      - MAD_white: MAD of the white-light curve (sum over wavelength)
+      - MAD_spec : median over integrations of the per-integration spectral MAD
+    """
+    w1 = 0.5
+    w2 = 0.5
+    flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
+
+    # 1) White-light MAD
+    white = np.nansum(flux, axis=1)               # sum over wavelength
+    white = white[~np.isnan(white)]
+    med_w = np.median(white)
+    mad_white = np.median(np.abs(white - med_w))
+
+    # 2) Spectral MAD: for each integration, take MAD across wavelength, then median over ints
+    med_spec = np.nanmedian(flux, axis=1, keepdims=True)  # (n_int,1)
+    dev = np.abs(flux - med_spec)                         # (n_int,n_wave)
+    mad_per_int = np.nanmedian(dev, axis=1)               # (n_int,)
+    mad_spec = np.median(mad_per_int)
+
+    return w1 * mad_white + w2 * mad_spec
+
+
 # ----------------------------------------
 # main
 # ----------------------------------------
@@ -225,7 +250,7 @@ def main():
             arr = np.asarray(model)
 
             dt = time.perf_counter() - t0
-            cost = cost_function(arr)
+            cost = cost_function(st3)
             fancyprint(f"→ cost = {cost:.6f} in {dt:.1f}s")
 
             logf.write(
