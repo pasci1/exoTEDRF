@@ -30,8 +30,8 @@ def cost_function(st3):
       - MAD_white: MAD of the white-light curve (sum over wavelength)
       - MAD_spec : median over integrations of the per-integration spectral MAD
     """
-    w1 = 1.0
-    w2 = 0.0
+    w1 = 0.5
+    w2 = 0.5
     flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
 
     # 1) White-light MAD
@@ -203,7 +203,7 @@ def main():
                 mode=cfg["observing_mode"],
                 baseline_ints=baseline_ints,
                 save_results=False,
-                skip_steps=['BadPixStep','PCAReconstructStep'],
+                skip_steps=[],
                 **s2_args,
                 **cfg.get("stage2_kwargs", {})
             )
