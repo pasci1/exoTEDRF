@@ -252,16 +252,20 @@ def main():
         current[key] = best_val
         fancyprint(f"Best {key} = {best_val} (cost={best_cost:.6f})")
 
-    logf.close()
-    fancyprint("=== FINAL OPTIMUM ===")
-    fancyprint(current)
-    fancyprint("Log saved to Cost_function_V2.txt")
+
 
     # total runtime
     t1 = time.perf_counter() - t0_total
     h, m = divmod(int(t1), 3600)
     m, s = divmod(m, 60)
-    fancyprint(f"TOTAL runtime: {h}h {m:02d}m {s:04.1f}s")
+    runtime_str = f"TOTAL runtime: {h}h {m:02d}min {s:04.1f}s\n"
+    fancyprint(runtime_str)
+    logf.write(runtime_str)
+
+    logf.close()
+    fancyprint("=== FINAL OPTIMUM ===")
+    fancyprint(current)
+    fancyprint("Log saved to Cost_function_V2.txt")
 
 if __name__ == "__main__":
     main()
