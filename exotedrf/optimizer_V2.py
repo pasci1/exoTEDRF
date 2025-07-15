@@ -115,10 +115,10 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            'time_window':              [3,5,7], # works
-            'rejection_threshold':      list(range(5,16,5)), # doesn't work
-            'time_rejection_threshold': list(range(5,16,5)), # works           
-            "nirspec_mask_width":       list(range(5,16,5)), # works
+            'time_window':              [3,5,7,9,11,13,15,17,19], # works
+            #'rejection_threshold':      list(range(4,30,2)), # doesn't work
+            'time_rejection_threshold': list(range(4,30,2)), # works           
+            "nirspec_mask_width":       list(range(2,30,2)), # works
         })
     else:  # MIRI
         param_ranges.update({
@@ -132,7 +132,7 @@ def main():
     param_ranges.update({
         #"space_outlier_threshold": list(range(5,16,5)), #off
         #"time_outlier_threshold":  list(range(5,16,5)), #off
-        "extract_width": list(range(5, 16, 5)),
+        "extract_width": list(range(5, 16, 2)),
     })
 
 
@@ -201,7 +201,7 @@ def main():
                 mode=cfg["observing_mode"],
                 baseline_ints=baseline_ints,
                 save_results=False,
-                skip_steps=["BadPixStep", "PCAReconstructStep"],
+                skip_steps=[],
                 **s2_args,
                 **cfg.get("stage2_kwargs", {})
             )
@@ -234,7 +234,7 @@ def main():
             )
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
-            count += 1
+            
 
             print(
                 "\n############################################",
@@ -242,6 +242,10 @@ def main():
                 "\n############################################\n",
                 flush=True
             )            
+
+            print("\033[1m\033[94m========== Cost ==========\033[0m",'\n', cost,'\n')
+
+            count += 1
 
         current[key] = best_val
         fancyprint(f"Best {key} = {best_val} (cost={best_cost:.6f})")
