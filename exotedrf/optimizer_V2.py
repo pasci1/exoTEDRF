@@ -26,27 +26,32 @@ from exotedrf.stage3 import run_stage3
 
 def cost_function(st3):
     """
-    Combined cost = w1 * MAD_white + w2 * MAD_spec
-      - MAD_white: MAD of the white-light curve (sum over wavelength)
-      - MAD_spec : median over integrations of the per-integration spectral MAD
+    Combined cost = w1 * norm_MAD_white + w2 * norm_MAD_spec
+      - norm_MAD_white = MAD_white / |median_white|
+      - norm_MAD_spec  = MAD_spec  / |median_spectral|
     """
     w1 = 0.3 / 1.3
     w2 = 1.0 / 1.3
     flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
 
     # 1) White-light MAD
-    white = np.nansum(flux, axis=1)         # sum over wavelength
-    white = white[~np.isnan(white)]         # drop NANs
-    med_w = np.median(white)
-    mad_white = np.median(np.abs(white - med_w))
+    white = np.nansum(flux, axis=1)               # shape (n_int,)
+    white = white[~np.isnan(white)]               # drop NaNs
+    med_white = np.median(white)
+    mad_white = np.median(np.abs(white - med_white))
+    norm_mad_white = mad_white / np.abs(med_white)
 
-    # 2) Spectral MAD: for each integration, take MAD across wavelength, then median over ints
-    med_spec = np.nanmedian(flux, axis=1, keepdims=True)  # (n_int,1)
-    dev = np.abs(flux - med_spec)                         # (n_int,n_wave)
-    mad_per_int = np.nanmedian(dev, axis=1)               # (n_int,)
-    mad_spec = np.median(mad_per_int)
+    # 2) Spectral MAD (per-integration)
+    med_spec = np.nanmedian(flux, axis=1, keepdims=True)  # (n_int, 1)
+    dev_spec = np.abs(flux - med_spec)
+    mad_spec_per_int = np.nanmedian(dev_spec, axis=1)     # (n_int,)
+    med_spec_vals = np.nanmedian(flux, axis=1)            # (n_int,)
+    norm_mad_spec_per_int = mad_spec_per_int / np.abs(med_spec_vals)
+    norm_mad_spec = np.nanmedian(norm_mad_spec_per_int)   # scalar
 
-    return w1 * mad_white + w2 * mad_spec
+    # Combined cost
+    return w1 * norm_mad_white + w2 * norm_mad_spec
+
 
 
 # ----------------------------------------
@@ -117,10 +122,10 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            'time_window':              [15,17,19], # works
+            'time_window':              [15], # works
             #'rejection_threshold':     list(range(4,9,2)), # works for Flag_up_ramp = True
-            'time_rejection_threshold': list(range(4,9,2)), # works           
-            "nirspec_mask_width":       list(range(16,21,2)), # works
+            'time_rejection_threshold': list(range(4,9,5)), # works           
+            #"nirspec_mask_width":       list(range(16,20,5)), # works
         })
     else:  # MIRI
         param_ranges.update({
@@ -134,7 +139,7 @@ def main():
     param_ranges.update({
         #"space_outlier_threshold": list(range(5,16,5)), #off
         #"time_outlier_threshold":  list(range(5,16,5)), #off
-        "extract_width": list(range(1, 8, 2)),
+        "extract_width": list(range(5, 8,5 )),
     })
 
 
