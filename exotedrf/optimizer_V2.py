@@ -185,7 +185,7 @@ def main():
 
             nints = dm_slice.data.shape[0]
             print("\033[1;91mnints is:\033[0m", nints)
-            baseline_ints = [0, nints - 1]
+            baseline_ints = [10,-10]
 
             t0 = time.perf_counter()
             s1_args = {k: trial_params[k] for k in stage1_keys if k in trial_params}
@@ -220,7 +220,7 @@ def main():
             st2, centroids = run_stage2(
                 st1,
                 mode=cfg["observing_mode"],
-                baseline_ints=[0, K-1],
+                baseline_ints=baseline_ints,
                 save_results=False,
                 skip_steps=['PCAReconstructStep'],
                 **s2_args,
