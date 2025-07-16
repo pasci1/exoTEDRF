@@ -203,7 +203,7 @@ def main():
                 mode=cfg["observing_mode"],
                 baseline_ints=baseline_ints,
                 save_results=False,
-                skip_steps=[],
+                skip_steps=['BadPixStep','PCAReconstructStep'],
                 **s2_args,
                 **cfg.get("stage2_kwargs", {})
             )
