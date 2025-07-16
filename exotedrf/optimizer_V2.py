@@ -30,8 +30,8 @@ def cost_function(st3):
       - norm_MAD_white = MAD_white / |median_white|
       - norm_MAD_spec  = MAD_spec  / |median_spectral|
     """
-    w1 = 0.3 / 1.3
-    w2 = 1.0 / 1.3
+    w1 = 0.5
+    w2 = 0.5
     flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
 
     # 1) White-light MAD
@@ -137,14 +137,13 @@ def main():
         })
     # always sweep
     param_ranges.update({
-        #"space_outlier_threshold": list(range(5,16,5)), #off wrong name
-        #"time_outlier_threshold":  list(range(5,16,5)), #off wrong name
+
         "space_thresh": list(range(1,31,1)),
         "time_thresh":  list(range(1,31,1)),
         "box_size":     list(range(1,31,1)),  # if you also want to tune it
         "window_size":  list(range(1,31,1)),  # ditto
-        #"extract_width": list(range(1,21,1 )),
-        "extract_width": [21],
+        "extract_width": list(range(1,21,1 )),
+
     })
 
 
