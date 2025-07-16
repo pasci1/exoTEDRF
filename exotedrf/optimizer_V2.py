@@ -141,8 +141,8 @@ def main():
         #"time_outlier_threshold":  list(range(5,16,5)), #off wrong name
         "space_thresh": [5, 10, 15],
         "time_thresh":  [5, 10, 15],
-        #"box_size":     [3, 5, 7],  # if you also want to tune it
-        #"window_size":  [3, 5, 7],  # ditto
+        "box_size":     [3, 5, 7],  # if you also want to tune it
+        "window_size":  [3, 5, 7],  # ditto
         "extract_width": list(range(5, 8,5 )),
     })
 
@@ -222,7 +222,7 @@ def main():
                 mode=cfg["observing_mode"],
                 baseline_ints=baseline_ints,
                 save_results=False,
-                skip_steps=['PCAReconstructStep'],
+                skip_steps=[],
                 **s2_args,
                 **cfg.get("stage2_kwargs", {})
             ) 
