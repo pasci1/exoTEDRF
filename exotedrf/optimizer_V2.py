@@ -174,7 +174,7 @@ def main():
         "time_window", "thresh", "box_size",
         "miri_trace_width", "miri_background_width",
     ]
-    
+
     stage3_keys = ["extract_width"]
 
     count = 1
@@ -225,7 +225,7 @@ def main():
                 skip_steps=['PCAReconstructStep'],
                 **s2_args,
                 **cfg.get("stage2_kwargs", {})
-            )
+            ) 
             if isinstance(centroids, np.ndarray):
                 centroids = pd.DataFrame(centroids.T, columns=["xpos", "ypos"])
             st3 = run_stage3(
