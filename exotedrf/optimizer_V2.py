@@ -220,8 +220,9 @@ def main():
             st2, centroids = run_stage2(
                 st1,
                 mode=cfg["observing_mode"],
-                baseline_ints=baseline_ints,
+                baseline_ints=[0, K-1],
                 save_results=False,
+                force_redo=True,
                 skip_steps=['PCAReconstructStep'],
                 **s2_args,
                 **cfg.get("stage2_kwargs", {})
