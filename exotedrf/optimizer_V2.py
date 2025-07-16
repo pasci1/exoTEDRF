@@ -168,12 +168,6 @@ def main():
         "miri_trace_width", "miri_background_width",
     ]
 
-    
-    stage2_keys_old = [
-        "space_outlier_threshold", "time_outlier_threshold", 
-        "time_window", "thresh", "box_size",
-        "miri_trace_width", "miri_background_width",
-    ]
 
     stage3_keys = ["extract_width"]
 
@@ -220,9 +214,9 @@ def main():
             )
 
             print("\033[1;91ms2_args is:\033[0m", s2_args)
-            print("\033[1;91mstage2_kwargs is:\033[0m", stage2_kwargs)
+        
 
-            
+
             st2, centroids = run_stage2(
                 st1,
                 mode=cfg["observing_mode"],
