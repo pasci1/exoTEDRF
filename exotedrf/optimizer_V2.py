@@ -122,10 +122,10 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            'time_window':              [15], # works
+            'time_window':              list(range(1,22,2)), # works
             #'rejection_threshold':     list(range(4,9,2)), # works for Flag_up_ramp = True
-            'time_rejection_threshold': list(range(4,9,5)), # works           
-            #"nirspec_mask_width":       list(range(16,20,5)), # works
+            'time_rejection_threshold': list(range(1,31,1)), # works           
+            "nirspec_mask_width":       list(range(1,31,1)), # works
         })
     else:  # MIRI
         param_ranges.update({
@@ -139,11 +139,12 @@ def main():
     param_ranges.update({
         #"space_outlier_threshold": list(range(5,16,5)), #off wrong name
         #"time_outlier_threshold":  list(range(5,16,5)), #off wrong name
-        "space_thresh": [5, 10, 15],
-        "time_thresh":  [5, 10, 15],
-        "box_size":     [3, 5, 7],  # if you also want to tune it
-        "window_size":  [3, 5, 7],  # ditto
-        "extract_width": list(range(5, 8,5 )),
+        "space_thresh": list(range(1,31,1)),
+        "time_thresh":  list(range(1,31,1)),
+        "box_size":     list(range(1,31,1)),  # if you also want to tune it
+        "window_size":  list(range(1,31,1)),  # ditto
+        #"extract_width": list(range(1,21,1 )),
+        "extract_width": [21],
     })
 
 
