@@ -190,6 +190,7 @@ def main():
             trial_params = {**current, key: trial}
 
             nints = dm_slice.data.shape[0]
+            print("\033[1;91mnints is:\033[0m", nints)
             baseline_ints = [0, nints - 1]
 
             t0 = time.perf_counter()
@@ -217,6 +218,11 @@ def main():
                 skip_steps=[],
                 **s1_args
             )
+
+            print("\033[1;91ms2_args is:\033[0m", s2_args)
+            print("\033[1;91mstage2_kwargs is:\033[0m", stage2_kwargs)
+
+            
             st2, centroids = run_stage2(
                 st1,
                 mode=cfg["observing_mode"],
