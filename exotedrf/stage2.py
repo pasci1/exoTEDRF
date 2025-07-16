@@ -2079,7 +2079,13 @@ def run_stage2(results, mode, soss_background_model=None, baseline_ints=None, sa
 
 
     print("\033[1;91mBadPixStep is:\033[0m", BadPixStep)
-    print("\033[1;91Results is:\033[0m", results)
+    print("\033[1;91mresults is:\033[0m", results)
+    #print(">>> BadPixStep input dims:", 
+    #  "deepframe.shape=", getattr(deepframe, 'shape', deepframe),
+    #  "space_thresh=", space_thresh,
+    #  "time_thresh=", time_thresh,
+    #  "box_size=", box_size,
+    #  "window_size=", window_size)
 
 
 
@@ -2092,6 +2098,17 @@ def run_stage2(results, mode, soss_background_model=None, baseline_ints=None, sa
         else:
             step_kwargs = {}
         step = BadPixStep(results, baseline_ints=baseline_ints, output_dir=outdir)
+        
+        print(">>> BadPixStep data shape:", results[0].data.shape)
+        from exotedrf import utils
+        print(">>> Instrument:", utils.get_instrument_name(results[0]))
+        print(">>> baseline_ints:", baseline_ints)
+        print(">>> space_thresh =", space_thresh,  " time_thresh =", time_thresh)
+        print(">>> box_size =", step_kwargs.get('box_size', 'default=5'), " window_size =", step_kwargs.get('window_size', 'default=5'))
+        print(">>> BadPixStep extra kwargs:", step_kwargs)
+
+        
+        
         results = step.run(save_results=save_results, space_thresh=space_thresh,
                            time_thresh=time_thresh, force_redo=force_redo, do_plot=do_plot,
                            show_plot=show_plot, **step_kwargs)
