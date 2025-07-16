@@ -208,7 +208,7 @@ def main():
                 flush=True
             )
 
-            st1 = run_stage1(
+            st1 = run_stage1( 
                 [dm_slice],
                 mode=cfg["observing_mode"],
                 baseline_ints=baseline_ints,
@@ -222,7 +222,6 @@ def main():
                 mode=cfg["observing_mode"],
                 baseline_ints=[0, K-1],
                 save_results=False,
-                force_redo=True,
                 skip_steps=['PCAReconstructStep'],
                 **s2_args,
                 **cfg.get("stage2_kwargs", {})
