@@ -137,8 +137,8 @@ def main():
         })
     # always sweep
     param_ranges.update({
-        #"space_outlier_threshold": list(range(5,16,5)), #off
-        #"time_outlier_threshold":  list(range(5,16,5)), #off
+        "space_outlier_threshold": list(range(5,16,5)), #off
+        "time_outlier_threshold":  list(range(5,16,5)), #off
         "extract_width": list(range(5, 8,5 )),
     })
 
@@ -208,7 +208,7 @@ def main():
                 mode=cfg["observing_mode"],
                 baseline_ints=baseline_ints,
                 save_results=False,
-                skip_steps=['BadPixStep','PCAReconstructStep'],
+                skip_steps=['PCAReconstructStep'],
                 **s2_args,
                 **cfg.get("stage2_kwargs", {})
             )

@@ -2077,6 +2077,13 @@ def run_stage2(results, mode, soss_background_model=None, baseline_ints=None, sa
         else:
             fancyprint('OneOverFStep not supported for {}.'.format(mode), msg_type='WARNING')
 
+
+    print("\033[1;91mBadPixStep is:\033[0m", BadPixStep)
+    print("\033[1;91Results is:\033[0m", results)
+
+
+
+
     # ===== Bad Pixel Correction Step =====
     # Custom DMS step.
     if 'BadPixStep' not in skip_steps:
