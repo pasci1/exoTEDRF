@@ -135,7 +135,7 @@ def main():
             "miri_trace_width": [10, 20, 40], 
             "miri_background_width": [7, 14, 28],
         })
-    # always sweep
+    # always sweep 
     param_ranges.update({
 
         "space_thresh": list(range(1,31,1)),
