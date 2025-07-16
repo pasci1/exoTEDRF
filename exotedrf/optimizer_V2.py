@@ -247,11 +247,11 @@ def main():
 
             dt = time.perf_counter() - t0
             cost = cost_function(st3)
-            fancyprint(f"→ cost = {cost:.6f} in {dt:.1f}s")
+            fancyprint(f"→ cost = {cost:.12f} in {dt:.1f}s")
 
             logf.write(
                 "\t".join(str(trial_params[k]) for k in param_order)
-                + f"\t{dt:.1f}\t{cost:.6f}\n"
+                + f"\t{dt:.1f}\t{cost:.12f}\n"
             )
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
@@ -269,7 +269,7 @@ def main():
             count += 1
 
         current[key] = best_val
-        fancyprint(f"Best {key} = {best_val} (cost={best_cost:.6f})")
+        fancyprint(f"Best {key} = {best_val} (cost={best_cost:.12f})")
 
 
 

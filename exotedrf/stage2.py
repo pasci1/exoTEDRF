@@ -1585,6 +1585,7 @@ def pcareconstructionstep(datafiles, pca_components=10, remove_components=None, 
     # Save stability results.
     suffix = 'stability.csv'
     if instrument == 'NIRSPEC':
+        det = utils.get_nrs_detector_name(datafiles[0]) # Pascal
         suffix = suffix.replace('.csv', '_{}.csv'.format(det))
     if os.path.exists(output_dir + fileroot_noseg + suffix):
         os.remove(output_dir + fileroot_noseg + suffix)
