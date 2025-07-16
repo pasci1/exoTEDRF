@@ -137,8 +137,12 @@ def main():
         })
     # always sweep
     param_ranges.update({
-        "space_outlier_threshold": list(range(5,16,5)), #off
-        "time_outlier_threshold":  list(range(5,16,5)), #off
+        #"space_outlier_threshold": list(range(5,16,5)), #off wrong name
+        #"time_outlier_threshold":  list(range(5,16,5)), #off wrong name
+        "space_thresh": [5, 10, 15],
+        "time_thresh":  [5, 10, 15],
+        #"box_size":     [3, 5, 7],  # if you also want to tune it
+        #"window_size":  [3, 5, 7],  # ditto
         "extract_width": list(range(5, 8,5 )),
     })
 
@@ -156,11 +160,21 @@ def main():
         "nirspec_mask_width", "soss_inner_mask_width",
         "soss_outer_mask_width", "miri_drop_groups",
     ]
+    
     stage2_keys = [
+        "space_thresh", "time_thresh",      # ← your new BadPixStep args
+        "box_size", "window_size",          # ← if you end up sweeping these too
+        "time_window",                      # ← stays for stage1/JumpStep
+        "miri_trace_width", "miri_background_width",
+    ]
+
+    
+    stage2_keys_old = [
         "space_outlier_threshold", "time_outlier_threshold", 
         "time_window", "thresh", "box_size",
         "miri_trace_width", "miri_background_width",
     ]
+    
     stage3_keys = ["extract_width"]
 
     count = 1
