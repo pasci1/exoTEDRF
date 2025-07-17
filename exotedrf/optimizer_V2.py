@@ -78,7 +78,7 @@ def main():
     cfg = parse_config(args.config)
 
 
-    # Eingabedateien ermitteln
+    # get input data
     input_files = unpack_input_dir(
         cfg["input_dir"],
         mode=cfg["observing_mode"],
@@ -163,7 +163,7 @@ def main():
     
     stage2_keys = [
         "space_thresh", "time_thresh",      # ← your new BadPixStep args
-        "box_size", "window_size",          # ← if you end up sweeping these too
+        #"box_size", "window_size",          # ← if you end up sweeping these too
         "time_window",                      # ← stays for stage1/JumpStep
         "miri_trace_width", "miri_background_width",
     ]
@@ -192,11 +192,19 @@ def main():
             s2_args = {k: trial_params[k] for k in stage2_keys if k in trial_params}
             s3_args = {k: trial_params[k] for k in stage3_keys if k in trial_params}
 
-            # time window
+            # Inherit Parameters to sweep
             if "time_window" in trial_params:
                 s1_args["JumpStep"] = {"time_window": trial_params["time_window"]}
-
             
+            badpix = {}
+            if "box_size"   in trial_params:
+                badpix["box_size"]   = trial_params["box_size"]
+            if "window_size" in trial_params:
+                badpix["window_size"] = trial_params["window_size"]
+            if badpix:
+                s2_args["BadPixStep"] = badpix
+
+
 
             print(
                 "\n############################################",
