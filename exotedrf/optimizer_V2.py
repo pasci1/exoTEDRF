@@ -140,8 +140,8 @@ def main():
 
         "space_thresh": list(range(6,9,1)),
         "time_thresh":  list(range(1,7,3)),
-        "box_size":     list(range(1,7,3)),  # if you also want to tune it
-        "window_size":  list(range(1,7,3)),  # ditto
+        "box_size":     list(range(1,7,3)),  # semi
+        "window_size":  list(range(1,7,3)),  # semi
         "extract_width": list(range(1,6,3 )),
 
     })
@@ -196,12 +196,16 @@ def main():
             if "time_window" in trial_params:
                 s1_args["JumpStep"] = {"time_window": trial_params["time_window"]}
 
+            
+
             print(
                 "\n############################################",
                 f"\n Step: {count}/{total_steps} starting {key}={trial}",
                 "\n############################################\n",
                 flush=True
             )
+
+            print("\033[1;91ms1_args is:\033[0m", s1_args)
 
             st1 = run_stage1( 
                 [dm_slice],
