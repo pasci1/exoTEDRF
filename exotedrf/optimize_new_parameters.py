@@ -97,11 +97,11 @@ def main():
 
     # 3) parameter ranges & order SWEEP OVER THESE PARAMETERS
     param_ranges = {
-        'time_window':              [3,5,7],
-        'box_size':                 [10,15,20],
-        'rejection_threshold':      [10,15,20],
-        'time_rejection_threshold': [10,15,20],
-        'nirspec_mask_width':       [8,15,20],
+        'time_window':              [3,5],
+        'box_size':                 [10],
+        'rejection_threshold':      [10,15],
+        'time_rejection_threshold': [10,15],
+        'nirspec_mask_width':       [8,15],
     }
 
     param_order = [

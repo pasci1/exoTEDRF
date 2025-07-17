@@ -53,6 +53,25 @@ def cost_function(st3):
     return w1 * norm_mad_white + w2 * norm_mad_spec
 
 
+# weigthed cost
+def compute_norm_mads(st3):
+    flux = np.asarray(st3['Flux'], dtype=float)
+    # — white light
+    white = np.nansum(flux, axis=1)
+    white = white[~np.isnan(white)]
+    med_white = np.median(white)
+    mad_white = np.median(np.abs(white - med_white))
+    norm_mad_white = mad_white / np.abs(med_white)
+    # — spectral
+    med_spec_2d = np.nanmedian(flux, axis=1, keepdims=True)
+    dev_spec    = np.abs(flux - med_spec_2d)
+    mad_spec_i  = np.nanmedian(dev_spec, axis=1)
+    med_spec_v  = np.nanmedian(flux, axis=1)
+    norm_mad_spec = np.nanmedian(mad_spec_i / np.abs(med_spec_v))
+    return norm_mad_white, norm_mad_spec
+
+
+
 
 # ----------------------------------------
 # main
@@ -76,7 +95,6 @@ def main():
 
     t0_total = time.perf_counter()
     cfg = parse_config(args.config)
-
 
     # get input data
     input_files = unpack_input_dir(
@@ -138,15 +156,24 @@ def main():
     # for all instruments
     param_ranges.update({
         "space_thresh": list(range(5,10,1)),
-        "time_thresh":  list(range(1,7,1)),
-        "box_size":     list(range(1,7,1)),  
-        "window_size":  list(range(1,7,1)),  
-        "extract_width": list(range(1,7,1 )),
+        "time_thresh":  list(range(1,6,1)),
+        "box_size":     list(range(1,6,1)),  
+        "window_size":  list(range(1,6,1)),  
+        "extract_width": list(range(1,6,1 )),
     })
 
     param_order = list(param_ranges.keys())
     current = {k: int(np.median(v)) for k, v in param_ranges.items()}
     total_steps = sum(len(v) for v in param_ranges.values())
+
+    ######## for cost weighted
+    WEIGHTS     = np.linspace(0.0, 1.0, 21)
+    weight_cols = [f"cost_{w1:.2f}" for w1 in WEIGHTS]
+
+    with open("Cost_function_V2_weighted.txt", "w") as wf:
+        hdr = param_order + ["duration_s", "cost"] + weight_cols
+        wf.write("\t".join(hdr) + "\n")
+    ########
 
     # Logging
     logf = open("Cost_function_V2.txt", "w")
@@ -264,6 +291,21 @@ def main():
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
             
+            # just for all weighted costs #######
+            # compute *both* normalized MADs (pull this out into a helper if you like)
+            norm_white, norm_spec = compute_norm_mads(st3)
+
+            # build *all* weighted costs
+            all_costs = [w1*norm_white + (1.0-w1)*norm_spec for w1 in WEIGHTS]
+
+            # assemble and append
+            row = [str(trial_params[k]) for k in param_order]
+            row += [f"{dt:.1f}", f"{cost:.12f}"]
+            row += [f"{c:.12f}" for c in all_costs]
+            with open("Cost_function_V2_weighted.txt", "a") as wf:
+                wf.write("\t".join(row) + "\n")
+
+            ######
 
             print(
                 "\n############################################",

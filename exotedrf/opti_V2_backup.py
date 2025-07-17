@@ -30,8 +30,8 @@ def cost_function(st3):
       - norm_MAD_white = MAD_white / |median_white|
       - norm_MAD_spec  = MAD_spec  / |median_spectral|
     """
-    w1 = 0.3 / 1.3
-    w2 = 1.0 / 1.3
+    w1 = 0.5
+    w2 = 0.5
     flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
 
     # 1) White-light MAD
@@ -78,7 +78,7 @@ def main():
     cfg = parse_config(args.config)
 
 
-    # Eingabedateien ermitteln
+    # get input data
     input_files = unpack_input_dir(
         cfg["input_dir"],
         mode=cfg["observing_mode"],
@@ -102,7 +102,7 @@ def main():
 
     # determine integration number (slice) K=
     dm_full = datamodels.open(seg0)
-    K = min(60, dm_full.data.shape[0])
+    K = min(100, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.integration_start = 1
@@ -111,7 +111,7 @@ def main():
     dm_full.close()
 
 
-    # Parameter to SWEEP
+    # Parameter to SWEEP sweep
     param_ranges = {}
     if args.instrument == "NIRISS":
         param_ranges.update({
@@ -122,10 +122,10 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            'time_window':              [15], # works
-            #'rejection_threshold':     list(range(4,9,2)), # works for Flag_up_ramp = True
-            'time_rejection_threshold': list(range(4,9,5)), # works           
-            #"nirspec_mask_width":       list(range(16,20,5)), # works
+            'time_window':              list(range(1,12,2)), # works
+            #'rejection_threshold':     list(range(10,21,1)), # works for Flag_up_ramp = True
+            'time_rejection_threshold': list(range(12,19,1)), # works           
+            "nirspec_mask_width":       list(range(15,21,1)), # works
         })
     else:  # MIRI
         param_ranges.update({
@@ -135,13 +135,14 @@ def main():
             "miri_trace_width": [10, 20, 40], 
             "miri_background_width": [7, 14, 28],
         })
-    # always sweep
+    # for all instruments
     param_ranges.update({
-        "space_outlier_threshold": list(range(5,16,5)), #off
-        "time_outlier_threshold":  list(range(5,16,5)), #off
-        "extract_width": list(range(5, 8,5 )),
+        "space_thresh": list(range(5,10,1)),
+        "time_thresh":  list(range(1,7,1)),
+        "box_size":     list(range(1,7,1)),  
+        "window_size":  list(range(1,7,1)),  
+        "extract_width": list(range(1,7,1 )),
     })
-
 
     param_order = list(param_ranges.keys())
     current = {k: int(np.median(v)) for k, v in param_ranges.items()}
@@ -156,11 +157,14 @@ def main():
         "nirspec_mask_width", "soss_inner_mask_width",
         "soss_outer_mask_width", "miri_drop_groups",
     ]
+    
     stage2_keys = [
-        "space_outlier_threshold", "time_outlier_threshold", 
-        "time_window", "thresh", "box_size",
+        "space_thresh", "time_thresh",      
+        "time_window",                      
         "miri_trace_width", "miri_background_width",
     ]
+
+
     stage3_keys = ["extract_width"]
 
     count = 1
@@ -176,16 +180,27 @@ def main():
             trial_params = {**current, key: trial}
 
             nints = dm_slice.data.shape[0]
-            baseline_ints = [0, nints - 1]
+            print("\033[1;91mnints is:\033[0m", nints)
+            baseline_ints = [10,-10]
 
             t0 = time.perf_counter()
             s1_args = {k: trial_params[k] for k in stage1_keys if k in trial_params}
             s2_args = {k: trial_params[k] for k in stage2_keys if k in trial_params}
             s3_args = {k: trial_params[k] for k in stage3_keys if k in trial_params}
 
-            # time window
+            # Inherit Parameters (2nd level)
             if "time_window" in trial_params:
                 s1_args["JumpStep"] = {"time_window": trial_params["time_window"]}
+            
+            badpix = {}
+            if "box_size"   in trial_params:
+                badpix["box_size"]   = trial_params["box_size"]
+            if "window_size" in trial_params:
+                badpix["window_size"] = trial_params["window_size"]
+            if badpix:
+                s2_args["BadPixStep"] = badpix
+
+
 
             print(
                 "\n############################################",
@@ -194,7 +209,9 @@ def main():
                 flush=True
             )
 
-            st1 = run_stage1(
+            print("\033[1;91ms1_args is:\033[0m", s1_args)
+
+            st1 = run_stage1( 
                 [dm_slice],
                 mode=cfg["observing_mode"],
                 baseline_ints=baseline_ints,
@@ -203,15 +220,20 @@ def main():
                 skip_steps=[],
                 **s1_args
             )
+
+            print("\033[1;91ms2_args is:\033[0m", s2_args)
+        
+
+
             st2, centroids = run_stage2(
                 st1,
                 mode=cfg["observing_mode"],
                 baseline_ints=baseline_ints,
                 save_results=False,
-                skip_steps=['PCAReconstructStep'],
+                skip_steps=[],
                 **s2_args,
                 **cfg.get("stage2_kwargs", {})
-            )
+            ) 
             if isinstance(centroids, np.ndarray):
                 centroids = pd.DataFrame(centroids.T, columns=["xpos", "ypos"])
             st3 = run_stage3(
@@ -233,11 +255,11 @@ def main():
 
             dt = time.perf_counter() - t0
             cost = cost_function(st3)
-            fancyprint(f"→ cost = {cost:.6f} in {dt:.1f}s")
+            fancyprint(f"→ cost = {cost:.12f} in {dt:.1f}s")
 
             logf.write(
                 "\t".join(str(trial_params[k]) for k in param_order)
-                + f"\t{dt:.1f}\t{cost:.6f}\n"
+                + f"\t{dt:.1f}\t{cost:.12f}\n"
             )
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
@@ -255,7 +277,7 @@ def main():
             count += 1
 
         current[key] = best_val
-        fancyprint(f"Best {key} = {best_val} (cost={best_cost:.6f})")
+        fancyprint(f"Best {key} = {best_val} (cost={best_cost:.12f})")
 
 
 
