@@ -102,7 +102,7 @@ def main():
 
     # determine integration number (slice) K=
     dm_full = datamodels.open(seg0)
-    K = min(60, dm_full.data.shape[0])
+    K = min(100, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.integration_start = 1
@@ -111,7 +111,7 @@ def main():
     dm_full.close()
 
 
-    # Parameter to SWEEP
+    # Parameter to SWEEP sweep
     param_ranges = {}
     if args.instrument == "NIRISS":
         param_ranges.update({
@@ -122,10 +122,10 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            'time_window':              list(range(1,7,2)), # works
-            #'rejection_threshold':     list(range(4,9,2)), # works for Flag_up_ramp = True
-            'time_rejection_threshold': list(range(14,17,1)), # works           
-            "nirspec_mask_width":       list(range(16,19,1)), # works
+            'time_window':              list(range(1,12,2)), # works
+            #'rejection_threshold':     list(range(10,21,1)), # works for Flag_up_ramp = True
+            'time_rejection_threshold': list(range(12,19,1)), # works           
+            "nirspec_mask_width":       list(range(15,21,1)), # works
         })
     else:  # MIRI
         param_ranges.update({
@@ -135,17 +135,14 @@ def main():
             "miri_trace_width": [10, 20, 40], 
             "miri_background_width": [7, 14, 28],
         })
-    # always sweep 
+    # for all instruments
     param_ranges.update({
-
-        "space_thresh": list(range(6,9,1)),
-        "time_thresh":  list(range(1,7,3)),
-        "box_size":     list(range(1,7,3)),  # semi
-        "window_size":  list(range(1,7,3)),  # semi
-        "extract_width": list(range(1,6,3 )),
-
+        "space_thresh": list(range(5,10,1)),
+        "time_thresh":  list(range(1,7,1)),
+        "box_size":     list(range(1,7,1)),  
+        "window_size":  list(range(1,7,1)),  
+        "extract_width": list(range(1,7,1 )),
     })
-
 
     param_order = list(param_ranges.keys())
     current = {k: int(np.median(v)) for k, v in param_ranges.items()}
@@ -162,9 +159,8 @@ def main():
     ]
     
     stage2_keys = [
-        "space_thresh", "time_thresh",      # ← your new BadPixStep args
-        #"box_size", "window_size",          # ← if you end up sweeping these too
-        "time_window",                      # ← stays for stage1/JumpStep
+        "space_thresh", "time_thresh",      
+        "time_window",                      
         "miri_trace_width", "miri_background_width",
     ]
 
@@ -192,7 +188,7 @@ def main():
             s2_args = {k: trial_params[k] for k in stage2_keys if k in trial_params}
             s3_args = {k: trial_params[k] for k in stage3_keys if k in trial_params}
 
-            # Inherit Parameters to sweep
+            # Inherit Parameters (2nd level)
             if "time_window" in trial_params:
                 s1_args["JumpStep"] = {"time_window": trial_params["time_window"]}
             
