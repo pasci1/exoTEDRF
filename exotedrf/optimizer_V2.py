@@ -31,7 +31,7 @@ def cost_function(st3):
       - norm_MAD_spec  = MAD_spec  / |median_spectral|
     """
     w1 = 0.0
-    w2 = 1.0
+    w2 = 1.0 
     flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
 
     # 1) White-light MAD
