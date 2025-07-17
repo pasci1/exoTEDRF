@@ -2101,7 +2101,8 @@ def run_stage2(results, mode, soss_background_model=None, baseline_ints=None, sa
         step = BadPixStep(results, baseline_ints=baseline_ints, output_dir=outdir)
         
         print(">>> BadPixStep data shape:", results[0].data.shape)
-       
+        print(">>> box_size:", box_size)
+        print(">>> window_size:", window_size)
         print(">>> Instrument:", utils.get_instrument_name(results[0]))
         print(">>> baseline_ints:", baseline_ints)
         print(">>> space_thresh =", space_thresh,  " time_thresh =", time_thresh)
