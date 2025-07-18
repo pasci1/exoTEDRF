@@ -30,8 +30,8 @@ def cost_function(st3):
       - norm_MAD_white = MAD_white / |median_white|
       - norm_MAD_spec  = MAD_spec  / |median_spectral|
     """
-    w1 = 0.0
-    w2 = 1.0 
+    w1 = 0.5
+    w2 = 0.5 
     flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
 
     # 1) White-light MAD
@@ -49,11 +49,27 @@ def cost_function(st3):
     norm_mad_spec_per_int = mad_spec_per_int / np.abs(med_spec_vals)
     norm_mad_spec = np.nanmedian(norm_mad_spec_per_int)   # scalar
 
+    print("\033[1;91 white : \033[0m", white)
+    print("\033[1;91 med_white : \033[0m", med_white)
+    print("\033[1;91 mad_white : \033[0m", mad_white)
+    print("\033[1;91 norm_mad_white : \033[0m", norm_mad_white)
+    print("\033[1;91 med_spec : \033[0m", med_spec)
+    print("\033[1;91 dev_spec : \033[0m", dev_spec)
+    print("\033[1;91 mad_spec_per_int : \033[0m", mad_spec_per_int)
+    print("\033[1;91 med_spec_vals : \033[0m", med_spec_vals)
+    print("\033[1;91 norm_mad_spec_per_int : \033[0m", norm_mad_spec_per_int)
+    print("\033[1;91 norm_mad_spec : \033[0m", norm_mad_spec)
+    print("\033[1;91 w1 : \033[0m", w1)
+    print("\033[1;91 w2 : \033[0m", w2)
+    print("\033[1;91 w1 * norm_mad_white + w2 * norm_mad_spec : \033[0m", w1 * norm_mad_white + w2 * norm_mad_spec)
+  
+    plt.plot(white)
+
     # Combined cost
     return w1 * norm_mad_white + w2 * norm_mad_spec
 
 
-# weigthed cost
+######### weigthed cost
 def compute_norm_mads(st3):
     flux = np.asarray(st3['Flux'], dtype=float)
     # — white light
@@ -69,7 +85,7 @@ def compute_norm_mads(st3):
     med_spec_v  = np.nanmedian(flux, axis=1)
     norm_mad_spec = np.nanmedian(mad_spec_i / np.abs(med_spec_v))
     return norm_mad_white, norm_mad_spec
-
+###########
 
 
 
@@ -291,7 +307,7 @@ def main():
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
             
-            # just for all weighted costs #######
+            ######## just for all weighted costs #######
             # compute *both* normalized MADs (pull this out into a helper if you like)
             norm_white, norm_spec = compute_norm_mads(st3)
 
@@ -305,7 +321,7 @@ def main():
             with open("Cost_function_V2_weighted.txt", "a") as wf:
                 wf.write("\t".join(row) + "\n")
 
-            ######
+            #############
 
             print(
                 "\n############################################",
