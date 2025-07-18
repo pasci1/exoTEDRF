@@ -38,8 +38,10 @@ def cost_function(st3):
     white = np.nansum(flux, axis=1)               # shape (n_int,)
     white = white[~np.isnan(white)]               # drop NaNs
     med_white = np.median(white)
-    mad_white = np.median(np.abs(white - med_white))
-    norm_mad_white = mad_white / np.abs(med_white)
+    norm_white = white / med_white
+    norm_med_white = np.median(norm_white)
+    norm_mad_white = np.median(np.abs(norm_white - norm_med_white))
+
 
     # 2) Spectral MAD (per-integration)
     med_spec = np.nanmedian(flux, axis=1, keepdims=True)  # (n_int, 1)
@@ -51,8 +53,11 @@ def cost_function(st3):
 
     print("\033[1;91white:\033[0m", white)
     print("\033[1;91med_white:\033[0m", med_white)
+    print("\033[1;91norm_white:\033[0m", norm_white)
+    print("\033[1;91norm_med_white:\033[0m", norm_med_white)
     print("\033[1;91mad_white:\033[0m", mad_white)
     print("\033[1;91norm_mad_white:\033[0m", norm_mad_white)
+
     print("\033[1;91med_spec:\033[0m", med_spec)
     print("\033[1;91dev_spec:\033[0m", dev_spec)
     print("\033[1;91mad_spec_per_int:\033[0m", mad_spec_per_int)
@@ -62,10 +67,15 @@ def cost_function(st3):
     print("\033[1;91w1:\033[0m", w1)
     print("\033[1;91w2:\033[0m", w2)
     print("\033[1;91w1*norm_mad_white+w2*norm_mad_spec:\033[0m", w1 * norm_mad_white + w2 * norm_mad_spec)
-  
-    plt.plot(white)                     
-    plt.savefig("white.png", dpi=300)  
-    plt.close()                         
+    print("\033[1;91flux:\033[0m", flux)
+
+    plt.plot(norm_white)                     
+    plt.savefig("norm_white.png", dpi=300)  
+    plt.close()          
+
+    plt.imshow(flux / np.nanmedian(flux), axis = 1)                     
+    plt.savefig("flux.png", dpi=300)  
+    plt.close()                    
 
 
     # Combined cost
