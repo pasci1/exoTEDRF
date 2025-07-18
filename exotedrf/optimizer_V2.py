@@ -72,7 +72,7 @@ def cost_function(st3):
     plt.savefig("norm_white.png", dpi=300)  
     plt.close()          
 
-    plt.imshow(flux / np.nanmedian(flux), axis = 0)                     
+    plt.imshow(flux / np.nanmedian((flux), axis = 0) )                  
     plt.savefig("flux.png", dpi=300)  
     plt.close()                    
 
