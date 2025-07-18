@@ -1632,7 +1632,7 @@ def main():
         "window_size":  list(range(1,21,1)),  
         "extract_width": list(range(1,21,1 )),
     })
- 
+  
     param_order = list(param_ranges.keys())
     current = {k: int(np.median(v)) for k, v in param_ranges.items()}
     total_steps = sum(len(v) for v in param_ranges.values())
