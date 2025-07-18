@@ -133,7 +133,7 @@ def main():
         #"box_size":     list(range(1,6,1)),  
         #"window_size":  list(range(1,6,1)),  
         #"extract_width": list(range(5,7,1 )),
-        "extract_width": [3,7,9]
+        "extract_width": [1,30,]
     })
 
     param_order = list(param_ranges.keys())
