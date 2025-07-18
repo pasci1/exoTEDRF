@@ -239,8 +239,40 @@ def main():
             )
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
-                
-            
+
+                flux = np.asarray(st3['Flux'], dtype=float)
+                white = np.nansum(flux, axis=1)
+                white = white[~np.isnan(white)]
+                med_white = np.median(white)
+                norm_white = white / med_white
+                norm_med_white = np.median(norm_white)
+                norm_mad_white = np.median(np.abs(norm_white - norm_med_white))
+                spec = flux
+                norm_spec = spec / np.nanmedian(spec, axis=1, keepdims=True)
+                mad_spec_per_int = np.nanmedian(np.abs(norm_spec - 1.0), axis=1)
+                norm_mad_spec = np.nanmedian(mad_spec_per_int)
+
+                # 1) Normalized white-light curve
+                plt.figure()
+                x = np.arange(len(norm_white))
+                normed_spec = flux / np.nanmedian(flux, axis=1, keepdims=True)
+                yerr = np.nanstd(normed_spec, axis=1)
+                plt.errorbar(x, norm_white, yerr=yerr,fmt="o-", capsize=3, elinewidth=1)
+                plt.xlabel("Integration Number")
+                plt.ylabel("Normalized White Flux")
+                plt.title("Normalized White-light Curve")
+                plt.grid(True)                # turn on the grid
+                plt.savefig("norm_white_w1_0.5_w2_0.5_K60.png", dpi=300)
+                plt.close()
+
+                # 2) Normalized flux image
+                plt.figure()
+                plt.imshow(flux / np.nanmedian(flux, axis=0), aspect='auto', vmin=0.99, vmax=1.01)
+                plt.xlabel("Spectral Pixel")
+                plt.ylabel("Integration Number")
+                plt.title("Normalized Flux Image")
+                plt.savefig("flux_w1_0.5_w2_0.5_K60.png", dpi=300)
+                plt.close()
 
             print(
                 "\n############################################",
