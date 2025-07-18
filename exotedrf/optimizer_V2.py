@@ -152,7 +152,7 @@ def main():
 
     # determine integration number (slice) K=
     dm_full = datamodels.open(seg0)
-    K = min(100, dm_full.data.shape[0])
+    K = min(60, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.integration_start = 1
@@ -172,10 +172,10 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            'time_window':              list(range(1,12,2)), # works
+            #'time_window':              list(range(1,12,2)), # works
             #'rejection_threshold':     list(range(10,21,1)), # works for Flag_up_ramp = True
-            'time_rejection_threshold': list(range(12,19,1)), # works           
-            "nirspec_mask_width":       list(range(15,21,1)), # works
+            'time_rejection_threshold': list(range(13,21,2)), # works           
+            #"nirspec_mask_width":       list(range(15,21,1)), # works
         })
     else:  # MIRI
         param_ranges.update({
@@ -187,11 +187,11 @@ def main():
         })
     # for all instruments
     param_ranges.update({
-        "space_thresh": list(range(5,10,1)),
-        "time_thresh":  list(range(1,6,1)),
-        "box_size":     list(range(1,6,1)),  
-        "window_size":  list(range(1,6,1)),  
-        "extract_width": list(range(1,6,1 )),
+        #"space_thresh": list(range(5,10,1)),
+        #"time_thresh":  list(range(1,6,1)),
+        #"box_size":     list(range(1,6,1)),  
+        #"window_size":  list(range(1,6,1)),  
+        "extract_width": list(range(1,11,2 )),
     })
 
     param_order = list(param_ranges.keys())
