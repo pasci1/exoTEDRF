@@ -44,12 +44,18 @@ def cost_function(st3):
 
 
     # 2) Spectral MAD (per-integration)
-    med_spec = np.nanmedian(flux, axis=1, keepdims=True)  # (n_int, 1)
-    dev_spec = np.abs(flux - med_spec)
-    mad_spec_per_int = np.nanmedian(dev_spec, axis=1)     # (n_int,)
-    med_spec_vals = np.nanmedian(flux, axis=1)            # (n_int,)
-    norm_mad_spec_per_int = mad_spec_per_int / np.abs(med_spec_vals)
-    norm_mad_spec = np.nanmedian(norm_mad_spec_per_int)   # scalar
+    #med_spec = np.nanmedian(flux, axis=1, keepdims=True)  # (n_int, 1)
+    #dev_spec = np.abs(flux - med_spec)
+    #mad_spec_per_int = np.nanmedian(dev_spec, axis=1)     # (n_int,)
+    #med_spec_vals = np.nanmedian(flux, axis=1)            # (n_int,)
+    #norm_mad_spec_per_int = mad_spec_per_int / np.abs(med_spec_vals)
+    #norm_mad_spec = np.nanmedian(norm_mad_spec_per_int)   # scalar
+
+    # 2) Spectral MAD (per-integration)
+    spec = flux
+    norm_spec = spec / np.nanmedian(spec, axis=1, keepdims=True)
+    mad_spec_per_int = np.nanmedian(np.abs(norm_spec - 1.0), axis=1)
+    norm_mad_spec = np.nanmedian(mad_spec_per_int)
 
     print("\033[1;91mwhite:\033[0m", white)
     print("\033[1;91mmed_white:\033[0m", med_white)
@@ -57,22 +63,20 @@ def cost_function(st3):
     print("\033[1;91mnorm_med_white:\033[0m", norm_med_white)
     print("\033[1;91mnorm_mad_white:\033[0m", norm_mad_white)
   
-    print("\033[1;91mmed_spec:\033[0m", med_spec)
-    print("\033[1;91mdev_spec:\033[0m", dev_spec)
+    print("\033[1;91mspec:\033[0m", spec)
+    print("\033[1;91mnorm_spec:\033[0m", norm_spec)
     print("\033[1;91mmad_spec_per_int:\033[0m", mad_spec_per_int)
-    print("\033[1;91mmed_spec_vals:\033[0m", med_spec_vals)
-    print("\033[1;91mnorm_mad_spec_per_int:\033[0m", norm_mad_spec_per_int)
     print("\033[1;91mnorm_mad_spec:\033[0m", norm_mad_spec)
     print("\033[1;91mw1:\033[0m", w1)
     print("\033[1;91mw2:\033[0m", w2)
     print("\033[1;91mw1*norm_mad_white+w2*norm_mad_spec:\033[0m", w1 * norm_mad_white + w2 * norm_mad_spec)
-    print("\033[1;91mflux:\033[0m", flux)
+    
 
     plt.plot(norm_white)                     
     plt.savefig("norm_white.png", dpi=300)  
     plt.close()          
 
-    plt.imshow(flux / np.nanmedian((flux), axis = 0) )                  
+    plt.imshow(flux / np.nanmedian((flux), axis = 0) , aspect='auto', vmin=0.99, vmax=1.01)                
     plt.savefig("flux.png", dpi=300)  
     plt.close()                    
 
