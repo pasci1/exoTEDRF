@@ -49,21 +49,24 @@ def cost_function(st3):
     norm_mad_spec_per_int = mad_spec_per_int / np.abs(med_spec_vals)
     norm_mad_spec = np.nanmedian(norm_mad_spec_per_int)   # scalar
 
-    print("\033[1;91 white : \033[0m", white)
-    print("\033[1;91 med_white : \033[0m", med_white)
-    print("\033[1;91 mad_white : \033[0m", mad_white)
-    print("\033[1;91 norm_mad_white : \033[0m", norm_mad_white)
-    print("\033[1;91 med_spec : \033[0m", med_spec)
-    print("\033[1;91 dev_spec : \033[0m", dev_spec)
-    print("\033[1;91 mad_spec_per_int : \033[0m", mad_spec_per_int)
-    print("\033[1;91 med_spec_vals : \033[0m", med_spec_vals)
-    print("\033[1;91 norm_mad_spec_per_int : \033[0m", norm_mad_spec_per_int)
-    print("\033[1;91 norm_mad_spec : \033[0m", norm_mad_spec)
-    print("\033[1;91 w1 : \033[0m", w1)
-    print("\033[1;91 w2 : \033[0m", w2)
-    print("\033[1;91 w1 * norm_mad_white + w2 * norm_mad_spec : \033[0m", w1 * norm_mad_white + w2 * norm_mad_spec)
+    print("\033[1;91white:\033[0m", white)
+    print("\033[1;91med_white:\033[0m", med_white)
+    print("\033[1;91mad_white:\033[0m", mad_white)
+    print("\033[1;91norm_mad_white:\033[0m", norm_mad_white)
+    print("\033[1;91med_spec:\033[0m", med_spec)
+    print("\033[1;91dev_spec:\033[0m", dev_spec)
+    print("\033[1;91mad_spec_per_int:\033[0m", mad_spec_per_int)
+    print("\033[1;91med_spec_vals:\033[0m", med_spec_vals)
+    print("\033[1;91norm_mad_spec_per_int:\033[0m", norm_mad_spec_per_int)
+    print("\033[1;91norm_mad_spec:\033[0m", norm_mad_spec)
+    print("\033[1;91w1:\033[0m", w1)
+    print("\033[1;91w2:\033[0m", w2)
+    print("\033[1;91w1*norm_mad_white+w2*norm_mad_spec:\033[0m", w1 * norm_mad_white + w2 * norm_mad_spec)
   
-    plt.plot(white)
+    plt.plot(white)                     
+    plt.savefig("white.png", dpi=300)  
+    plt.close()                         
+
 
     # Combined cost
     return w1 * norm_mad_white + w2 * norm_mad_spec
