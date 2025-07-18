@@ -132,7 +132,8 @@ def main():
         #"time_thresh":  list(range(1,6,1)),
         #"box_size":     list(range(1,6,1)),  
         #"window_size":  list(range(1,6,1)),  
-        "extract_width": list(range(5,7,1 )),
+        #"extract_width": list(range(5,7,1 )),
+        "extract_width": [3,7,9]
     })
 
     param_order = list(param_ranges.keys())
@@ -140,7 +141,7 @@ def main():
     total_steps = sum(len(v) for v in param_ranges.values())
 
     # Logging
-    logf = open("Z_Cost_w1_0.5_w2_0.5_K60.txt", "w")
+    logf = open("Output_Big/Cost_w1_0.5_w2_0.5_K60.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
     stage1_keys = [
@@ -254,16 +255,27 @@ def main():
 
                 # 1) Normalized white-light curve
                 plt.figure()
+                plt.plot(norm_white, marker='o')
+                plt.xlabel("Integration Number")
+                plt.ylabel("Normalized White Flux")
+                plt.title("Normalized White-light Curve with Errobar")
+                plt.grid(True)           
+                plt.savefig("Output_Big/norm_white_w1_0.5_w2_0.5_K60.png", dpi=300)
+                plt.close()
+
+                plt.figure()
                 x = np.arange(len(norm_white))
                 normed_spec = flux / np.nanmedian(flux, axis=1, keepdims=True)
                 yerr = np.nanstd(normed_spec, axis=1)
                 plt.errorbar(x, norm_white, yerr=yerr,fmt="o-", capsize=3, elinewidth=1)
                 plt.xlabel("Integration Number")
                 plt.ylabel("Normalized White Flux")
-                plt.title("Normalized White-light Curve")
+                plt.title("Normalized White-light Curve with Errobar")
                 plt.grid(True)                # turn on the grid
-                plt.savefig("norm_white_w1_0.5_w2_0.5_K60.png", dpi=300)
+                plt.savefig("Output_Big/norm_white_error_w1_0.5_w2_0.5_K60.png", dpi=300)
                 plt.close()
+
+
 
                 # 2) Normalized flux image
                 plt.figure()
@@ -271,8 +283,10 @@ def main():
                 plt.xlabel("Spectral Pixel")
                 plt.ylabel("Integration Number")
                 plt.title("Normalized Flux Image")
-                plt.savefig("flux_w1_0.5_w2_0.5_K60.png", dpi=300)
+                plt.savefig("Output_Big/flux_w1_0.5_w2_0.5_K60.png", dpi=300)
                 plt.close()
+
+
 
             print(
                 "\n############################################",
