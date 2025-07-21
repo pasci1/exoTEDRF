@@ -134,7 +134,7 @@ def main():
         "time_thresh":  list(range(1,21,1)),
         "box_size":     list(range(1,21,1)),  
         "window_size":  list(range(1,16,1)),  
-        "extract_width": list(range(1,41,1 )),
+        "extract_width": list(range(1,21,1 )),
         
     })
 
