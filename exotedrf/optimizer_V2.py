@@ -29,8 +29,8 @@ def cost_function(st3):
       - norm_MAD_white = MAD_white / |median_white|
       - norm_MAD_spec  = MAD_spec  / |median_spectral|
     """
-    w1 = 0.5
-    w2 = 0.5 
+    w1 = 1.0
+    w2 = 0.0 
     flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
 
     # 1) White-light MAD
@@ -115,10 +115,10 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            #'time_window':              list(range(1,12,2)), # works
-            ##'rejection_threshold':     list(range(10,21,1)), # works for Flag_up_ramp = True
-            #'time_rejection_threshold': list(range(1,31,1)), # works           
-            #"nirspec_mask_width":       list(range(10,31,1)), # works
+            'time_window':              list(range(1,12,2)), # works
+            #'rejection_threshold':     list(range(10,21,1)), # works for Flag_up_ramp = True
+            'time_rejection_threshold': list(range(1,31,1)), # works           
+            "nirspec_mask_width":       list(range(1,31,1)), # works
         })
     else:  # MIRI
         param_ranges.update({
@@ -130,12 +130,12 @@ def main():
         })
     # for all instruments
     param_ranges.update({
-        #"space_thresh": list(range(1,21,1)),
-        #"time_thresh":  list(range(1,21,1)),
-        #"box_size":     list(range(1,21,1)),  
-        #"window_size":  list(range(1,21,1)),  
-        #"extract_width": list(range(1,21,1 )),
-        "extract_width": [10],
+        "space_thresh": list(range(1,31,1)),
+        "time_thresh":  list(range(1,21,1)),
+        "box_size":     list(range(1,21,1)),  
+        "window_size":  list(range(1,16,1)),  
+        "extract_width": list(range(1,41,1 )),
+        
     })
 
     param_order = list(param_ranges.keys())
@@ -143,7 +143,7 @@ def main():
     total_steps = sum(len(v) for v in param_ranges.values())
 
     # Logging
-    logf = open("Output_Big/Cost_w1_1.0_w2_0.0_K100_default.txt", "w")
+    logf = open("Output_Big/Cost_w1_1.0_w2_0.0_K100.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
     stage1_keys = [
@@ -265,7 +265,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve")
                 plt.grid(True)           
-                plt.savefig("Output_Big/norm_white_w1_1.0_w2_0.0_K100_default.png", dpi=300)
+                plt.savefig("Output_Big/norm_white_w1_1.0_w2_0.0_K100.png", dpi=300)
                 plt.close()
 
                 plt.figure()
@@ -277,7 +277,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve with Errobar")
                 plt.grid(True)                # turn on the grid
-                plt.savefig("Output_Big/norm_white_error_w1_1.0_w2_0.0_K100_default.png", dpi=300)
+                plt.savefig("Output_Big/norm_white_error_w1_1.0_w2_0.0_K100.png", dpi=300)
                 plt.close()
 
                 # 2) Normalized flux image
@@ -286,7 +286,7 @@ def main():
                 plt.xlabel("Spectral Pixel")
                 plt.ylabel("Integration Number")
                 plt.title("Normalized Flux Image")
-                plt.savefig("Output_Big/flux_w1_1.0_w2_0.0_K100_default.png", dpi=300)
+                plt.savefig("Output_Big/flux_w1_1.0_w2_0.0_K100.png", dpi=300)
                 plt.close()
 
             print(
