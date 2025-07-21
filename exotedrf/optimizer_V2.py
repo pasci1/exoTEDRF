@@ -96,7 +96,7 @@ def main():
 
     # determine integration number (slice) K=
     dm_full = datamodels.open(seg0)
-    K = min(60, dm_full.data.shape[0])
+    K = min(100, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.integration_start = 1
@@ -135,7 +135,7 @@ def main():
         #"box_size":     list(range(1,21,1)),  
         #"window_size":  list(range(1,21,1)),  
         #"extract_width": list(range(1,21,1 )),
-        "extract_width": [3,40],
+        "extract_width": [3,40,2],
     })
 
     param_order = list(param_ranges.keys())
@@ -243,6 +243,8 @@ def main():
 
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
+
+                print("\033[1;91mbest_cost\033[0m", best_cost)
 
                 flux = np.asarray(st3['Flux'], dtype=float)
                 white = np.nansum(flux, axis=1)
