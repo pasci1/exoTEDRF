@@ -2100,13 +2100,13 @@ def run_stage2(results, mode, soss_background_model=None, baseline_ints=None, sa
             step_kwargs = {}
         step = BadPixStep(results, baseline_ints=baseline_ints, output_dir=outdir)
         
-        print(">>> BadPixStep data shape:", results[0].data.shape)
+        #print(">>> BadPixStep data shape:", results[0].data.shape)
 
-        print(">>> Instrument:", utils.get_instrument_name(results[0]))
-        print(">>> baseline_ints:", baseline_ints)
-        print(">>> space_thresh =", space_thresh,  " time_thresh =", time_thresh)
-        print(">>> box_size =", step_kwargs.get('box_size', 'default=5'), " window_size =", step_kwargs.get('window_size', 'default=5'))
-        print(">>> BadPixStep extra kwargs:", step_kwargs)
+        #print(">>> Instrument:", utils.get_instrument_name(results[0]))
+        #print(">>> baseline_ints:", baseline_ints)
+        #print(">>> space_thresh =", space_thresh,  " time_thresh =", time_thresh)
+        #print(">>> box_size =", step_kwargs.get('box_size', 'default=5'), " window_size =", step_kwargs.get('window_size', 'default=5'))
+        #print(">>> BadPixStep extra kwargs:", step_kwargs)
 
         
         
