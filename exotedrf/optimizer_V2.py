@@ -144,7 +144,7 @@ def main():
     total_steps = sum(len(v) for v in param_ranges.values())
 
     # Logging
-    logf = open("Output_Big/Cost_w1_0.0_w2_1.0_K100_DEFAULT.txt", "w")
+    logf = open("Output/Cost_w1_0.0_w2_1.0_K100_DEFAULT.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
     stage1_keys = [
@@ -266,7 +266,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve")
                 plt.grid(True)           
-                plt.savefig("Output_Big/norm_white_w1_0.0_w2_1.0_K100_DEFAULT.png", dpi=300)
+                plt.savefig("Output/norm_white_w1_0.0_w2_1.0_K100_DEFAULT.png", dpi=300)
                 plt.close()
 
                 plt.figure()
@@ -278,7 +278,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve with Errobar")
                 plt.grid(True)                # turn on the grid
-                plt.savefig("Output_Big/norm_white_error_w1_0.0_w2_1.0_K100_DEFAULT.png", dpi=300)
+                plt.savefig("Output/norm_white_error_w1_0.0_w2_1.0_K100_DEFAULT.png", dpi=300)
                 plt.close()
 
                 # 2) Normalized flux image
@@ -287,7 +287,7 @@ def main():
                 plt.xlabel("Spectral Pixel")
                 plt.ylabel("Integration Number")
                 plt.title("Normalized Flux Image")
-                plt.savefig("Output_Big/flux_w1_0.0_w2_1.0_K100_DEFAULT.png", dpi=300)
+                plt.savefig("Output/flux_w1_0.0_w2_1.0_K100_DEFAULT.png", dpi=300)
                 plt.close()
 
             print(
