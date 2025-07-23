@@ -47,7 +47,7 @@ def cost_function(st3):
     wave_meds = np.nanmedian(spec, axis=0, keepdims=True)
     norm_spec = spec / wave_meds                   # (n_int, n_wave)
     mad_spec_per_wave = np.nanmedian(np.abs(norm_spec - 1.0), axis=0)
-    norm_mad_spec = np.median(mad_spec_per_wave)
+    norm_mad_spec = np.nanmedian(mad_spec_per_wave)
 
     print('############################################################################3')
     print('white: ', white)
