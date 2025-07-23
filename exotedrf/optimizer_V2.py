@@ -31,8 +31,8 @@ def cost_function(st3):
       - norm_MAD_white = MAD_white / |median_white|
       - norm_MAD_spec  = MAD_spec  / |median_spectral|
     """
-    w1 = 0.0
-    w2 = 1.0 
+    w1 = 0.5
+    w2 = 0.5 
     flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
 
     # 1) White-light MAD (unchanged)
@@ -147,7 +147,7 @@ def main():
     total_steps = sum(len(v) for v in param_ranges.values())
 
     # Logging
-    logf = open("Output/Cost_MAD_w1_0.0_w2_1.0_K60.txt", "w")
+    logf = open("Output/Cost_MAD_w1_0.5_w2_0.5_K60.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
     stage1_keys = [
@@ -269,7 +269,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve")
                 plt.grid(True)           
-                plt.savefig("Output/norm_white__MAD_w1_0.0_w2_1.0_K60.png", dpi=300)
+                plt.savefig("Output/norm_white_MAD_w1_0.5_w2_0.5_K60.png", dpi=300)
                 plt.close()
 
                 
@@ -282,7 +282,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve with Errobar")
                 plt.grid(True)                # turn on the grid
-                plt.savefig("Output/norm_white_error_MAD_w1_0.0_w2_1.0_K60.png", dpi=300)
+                plt.savefig("Output/norm_white_error_MAD_w1_0.5_w2_0.5_K60.png", dpi=300)
                 plt.close()
                 
 
@@ -292,7 +292,7 @@ def main():
                 plt.xlabel("Spectral Pixel")
                 plt.ylabel("Integration Number")
                 plt.title("Normalized Flux Image")
-                plt.savefig("Output/flux_MAD_w1_0.0_w2_1.0_K60.png", dpi=300)
+                plt.savefig("Output/flux_MAD_w1_0.5_w2_0.5_K60.png", dpi=300)
                 plt.close()
 
             print(
