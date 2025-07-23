@@ -276,7 +276,7 @@ def main():
                 plt.figure()
                 x = np.arange(len(norm_white))
                 normed_spec = flux / np.nanmedian(flux, axis=0, keepdims=True)
-                yerr = np.nanstd(normed_spec, axis=0)
+                yerr = np.nanstd(normed_spec, axis=1)
                 plt.errorbar(x, norm_white, yerr=yerr,fmt="o-", capsize=3, elinewidth=1)
                 plt.xlabel("Integration Number")
                 plt.ylabel("Normalized White Flux")
