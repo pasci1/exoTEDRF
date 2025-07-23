@@ -35,22 +35,20 @@ def cost_function(st3):
     w2 = 0.5 
     flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
 
-    # 1) White-light MAD (unchanged)
+    # 1) White-light scatter (as before)
     white = np.nansum(flux, axis=1)
     white = white[~np.isnan(white)]
     med_white = np.median(white)
     norm_white = white / med_white
-    norm_med_white = np.median(norm_white)
-    norm_mad_white = np.median(np.abs(norm_white - norm_med_white))
+    norm_mad_white = np.median(np.abs(norm_white - np.median(norm_white)))
 
-    # 2) Spectral MAD (per‑wavelength median)
+    # 2) Spectral scatter over time (per-wavelength channels)
     spec = flux
-    wave_medians = np.nanmedian(spec, axis=0, keepdims=True)    # shape (1, n_wave)
-    norm_spec = spec / wave_medians                             # broadcast to (n_int, n_wave)
-    mad_spec_per_int = np.nanmedian(np.abs(norm_spec - 1.0), axis=1)
-    norm_mad_spec = np.nanmedian(mad_spec_per_int)
+    wave_meds = np.nanmedian(spec, axis=0, keepdims=True)
+    norm_spec = spec / wave_meds                   # (n_int, n_wave)
+    mad_spec_per_wave = np.nanmedian(np.abs(norm_spec - 1.0), axis=0)
+    norm_mad_spec = np.median(mad_spec_per_wave)
 
-    # Combined cost
     return w1 * norm_mad_white + w2 * norm_mad_spec
 
 # ----------------------------------------
@@ -118,10 +116,10 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            'time_window':              list(range(5,12,2)), # works
-            #'rejection_threshold':     list(range(10,21,1)), # works for Flag_up_ramp = True
-            'time_rejection_threshold': list(range(5,16,1)), # works           
-            "nirspec_mask_width":       list(range(10,31,2)), # works
+            #'time_window':              list(range(5,12,2)), # works
+            ##'rejection_threshold':     list(range(10,21,1)), # works for Flag_up_ramp = True
+            #'time_rejection_threshold': list(range(5,16,1)), # works           
+            #"nirspec_mask_width":       list(range(10,31,2)), # works
         })
     else:  # MIRI
         param_ranges.update({
@@ -133,11 +131,12 @@ def main():
         })
     # for all instruments
     param_ranges.update({
-        "space_thresh": list(range(10,21,1)),
-        "time_thresh":  list(range(5,16,1)),
-        "box_size":     list(range(2,9,1)),  
-        "window_size":  list(range(3,10,2)),  
-        "extract_width": list(range(3,11,1 )),
+        #"space_thresh": list(range(10,21,1)),
+        #"time_thresh":  list(range(5,16,1)),
+        #"box_size":     list(range(2,9,1)),  
+        #"window_size":  list(range(3,10,2)),  
+        #"extract_width": list(range(3,11,1 )),
+        "extract_width": [5]
    
                 
     })
@@ -147,7 +146,7 @@ def main():
     total_steps = sum(len(v) for v in param_ranges.values())
 
     # Logging
-    logf = open("Output/Cost_MAD_w1_0.5_w2_0.5_K60.txt", "w")
+    logf = open("Output/TEST_Cost_MAD_w1_0.5_w2_0.5_K60.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
     stage1_keys = [
@@ -269,7 +268,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve")
                 plt.grid(True)           
-                plt.savefig("Output/norm_white_MAD_w1_0.5_w2_0.5_K60.png", dpi=300)
+                plt.savefig("Output/TEST_norm_white_MAD_w1_0.5_w2_0.5_K60.png", dpi=300)
                 plt.close()
 
                 
@@ -282,7 +281,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve with Errobar")
                 plt.grid(True)                # turn on the grid
-                plt.savefig("Output/norm_white_error_MAD_w1_0.5_w2_0.5_K60.png", dpi=300)
+                plt.savefig("Output/TEST_norm_white_error_MAD_w1_0.5_w2_0.5_K60.png", dpi=300)
                 plt.close()
                 
 
@@ -292,7 +291,7 @@ def main():
                 plt.xlabel("Spectral Pixel")
                 plt.ylabel("Integration Number")
                 plt.title("Normalized Flux Image")
-                plt.savefig("Output/flux_MAD_w1_0.5_w2_0.5_K60.png", dpi=300)
+                plt.savefig("Output/TEST_flux_MAD_w1_0.5_w2_0.5_K60.png", dpi=300)
                 plt.close()
 
             print(
