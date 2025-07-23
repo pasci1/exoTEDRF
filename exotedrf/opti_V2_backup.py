@@ -6,7 +6,6 @@ os.environ.setdefault('CRDS_PATH', os.path.join(os.getcwd(),'Optimize_WASP39b','
 os.environ.setdefault('CRDS_SERVER_URL', 'https://jwst-crds.stsci.edu')
 os.environ.setdefault('CRDS_CONTEXT',    'jwst_1322.pmap')
 
-
 import glob
 import time
 import argparse
@@ -30,29 +29,26 @@ def cost_function(st3):
       - norm_MAD_white = MAD_white / |median_white|
       - norm_MAD_spec  = MAD_spec  / |median_spectral|
     """
-    w1 = 0.5
-    w2 = 0.5
+    w1 = 0.0
+    w2 = 1.0 
     flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
 
     # 1) White-light MAD
     white = np.nansum(flux, axis=1)               # shape (n_int,)
     white = white[~np.isnan(white)]               # drop NaNs
     med_white = np.median(white)
-    mad_white = np.median(np.abs(white - med_white))
-    norm_mad_white = mad_white / np.abs(med_white)
+    norm_white = white / med_white
+    norm_med_white = np.median(norm_white)
+    norm_mad_white = np.median(np.abs(norm_white - norm_med_white))
 
     # 2) Spectral MAD (per-integration)
-    med_spec = np.nanmedian(flux, axis=1, keepdims=True)  # (n_int, 1)
-    dev_spec = np.abs(flux - med_spec)
-    mad_spec_per_int = np.nanmedian(dev_spec, axis=1)     # (n_int,)
-    med_spec_vals = np.nanmedian(flux, axis=1)            # (n_int,)
-    norm_mad_spec_per_int = mad_spec_per_int / np.abs(med_spec_vals)
-    norm_mad_spec = np.nanmedian(norm_mad_spec_per_int)   # scalar
+    spec = flux
+    norm_spec = spec / np.nanmedian(spec, axis=1, keepdims=True)
+    mad_spec_per_int = np.nanmedian(np.abs(norm_spec - 1.0), axis=1)
+    norm_mad_spec = np.nanmedian(mad_spec_per_int)
 
     # Combined cost
     return w1 * norm_mad_white + w2 * norm_mad_spec
-
-
 
 # ----------------------------------------
 # main
@@ -73,10 +69,8 @@ def main():
     )
     args = parser.parse_args()
 
-
     t0_total = time.perf_counter()
     cfg = parse_config(args.config)
-
 
     # get input data
     input_files = unpack_input_dir(
@@ -102,14 +96,13 @@ def main():
 
     # determine integration number (slice) K=
     dm_full = datamodels.open(seg0)
-    K = min(100, dm_full.data.shape[0])
+    K = min(60, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.integration_start = 1
     dm_slice.meta.exposure.integration_end = K
     dm_slice.meta.exposure.nints = K
     dm_full.close()
-
 
     # Parameter to SWEEP sweep
     param_ranges = {}
@@ -122,26 +115,28 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            'time_window':              list(range(1,12,2)), # works
+            #'time_window':              list(range(1,9,2)), # works
             #'rejection_threshold':     list(range(10,21,1)), # works for Flag_up_ramp = True
-            'time_rejection_threshold': list(range(12,19,1)), # works           
-            "nirspec_mask_width":       list(range(15,21,1)), # works
+            #'time_rejection_threshold': list(range(9,31,1)), # works           
+            #"nirspec_mask_width":       list(range(9,31,1)), # works
         })
     else:  # MIRI
         param_ranges.update({
-            "miri_drop_groups": [6, 12, 24],
-            "jump_threshold": [5, 15, 30],
-            "time_jump_threshold": [3, 10, 20],
-            "miri_trace_width": [10, 20, 40], 
-            "miri_background_width": [7, 14, 28],
+            #"miri_drop_groups": [6, 12, 24],
+            #"jump_threshold": [5, 15, 30],
+            #"time_jump_threshold": [3, 10, 20],
+            #"miri_trace_width": [10, 20, 40], 
+            #"miri_background_width": [7, 14, 28],
         })
     # for all instruments
     param_ranges.update({
-        "space_thresh": list(range(5,10,1)),
-        "time_thresh":  list(range(1,7,1)),
-        "box_size":     list(range(1,7,1)),  
-        "window_size":  list(range(1,7,1)),  
-        "extract_width": list(range(1,7,1 )),
+        #"space_thresh": list(range(1,21,1)),
+        #"time_thresh":  list(range(1,16,1)),
+        #"box_size":     list(range(1,21,1)),  
+        #"window_size":  list(range(1,16,1)),  
+        #"extract_width": list(range(1,21,1 )),
+        "extract_width": [5]
+                
     })
 
     param_order = list(param_ranges.keys())
@@ -149,7 +144,7 @@ def main():
     total_steps = sum(len(v) for v in param_ranges.values())
 
     # Logging
-    logf = open("Cost_function_V2.txt", "w")
+    logf = open("Output/Cost_w1_0.0_w2_1.0_K100_DEFAULT.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
     stage1_keys = [
@@ -163,7 +158,6 @@ def main():
         "time_window",                      
         "miri_trace_width", "miri_background_width",
     ]
-
 
     stage3_keys = ["extract_width"]
 
@@ -188,7 +182,7 @@ def main():
             s2_args = {k: trial_params[k] for k in stage2_keys if k in trial_params}
             s3_args = {k: trial_params[k] for k in stage3_keys if k in trial_params}
 
-            # Inherit Parameters (2nd level)
+            # Inherit parameters (2nd level)
             if "time_window" in trial_params:
                 s1_args["JumpStep"] = {"time_window": trial_params["time_window"]}
             
@@ -200,16 +194,12 @@ def main():
             if badpix:
                 s2_args["BadPixStep"] = badpix
 
-
-
             print(
                 "\n############################################",
                 f"\n Step: {count}/{total_steps} starting {key}={trial}",
                 "\n############################################\n",
                 flush=True
             )
-
-            print("\033[1;91ms1_args is:\033[0m", s1_args)
 
             st1 = run_stage1( 
                 [dm_slice],
@@ -220,9 +210,6 @@ def main():
                 skip_steps=[],
                 **s1_args
             )
-
-            print("\033[1;91ms2_args is:\033[0m", s2_args)
-        
 
 
             st2, centroids = run_stage2(
@@ -245,14 +232,6 @@ def main():
                 **cfg.get("stage3_kwargs", {})
             )
 
-            # Flux‐Array 
-            model = st3
-            if isinstance(model, dict):
-                model = next(iter(model.values()))
-            if hasattr(model, "data"):
-                model = model.data
-            arr = np.asarray(model)
-
             dt = time.perf_counter() - t0
             cost = cost_function(st3)
             fancyprint(f"→ cost = {cost:.12f} in {dt:.1f}s")
@@ -261,9 +240,57 @@ def main():
                 "\t".join(str(trial_params[k]) for k in param_order)
                 + f"\t{dt:.1f}\t{cost:.12f}\n"
             )
+
+
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
-            
+
+                print("\033[1;91mbest_cost\033[0m", best_cost)
+
+                flux = np.asarray(st3['Flux'], dtype=float)
+                white = np.nansum(flux, axis=1)
+                white = white[~np.isnan(white)]
+                med_white = np.median(white)
+                norm_white = white / med_white
+                norm_med_white = np.median(norm_white)
+                norm_mad_white = np.median(np.abs(norm_white - norm_med_white))
+                spec = flux
+                norm_spec = spec / np.nanmedian(spec, axis=1, keepdims=True)
+                mad_spec_per_int = np.nanmedian(np.abs(norm_spec - 1.0), axis=1)
+                norm_mad_spec = np.nanmedian(mad_spec_per_int)
+
+                # 1) Normalized white-light curve
+                plt.figure()
+                plt.plot(norm_white, marker='o')
+                plt.xlabel("Integration Number")
+                plt.ylabel("Normalized White Flux")
+                plt.title("Normalized White-light Curve")
+                plt.grid(True)           
+                plt.savefig("Output/norm_white_w1_0.0_w2_1.0_K100_DEFAULT.png", dpi=300)
+                plt.close()
+
+                """
+                plt.figure()
+                x = np.arange(len(norm_white))
+                normed_spec = flux / np.nanmedian(flux, axis=1, keepdims=True)
+                yerr = np.nanstd(normed_spec, axis=1)
+                plt.errorbar(x, norm_white, yerr=yerr,fmt="o-", capsize=3, elinewidth=1)
+                plt.xlabel("Integration Number")
+                plt.ylabel("Normalized White Flux")
+                plt.title("Normalized White-light Curve with Errobar")
+                plt.grid(True)                # turn on the grid
+                plt.savefig("Output/norm_white_error_w1_0.0_w2_1.0_K100_DEFAULT.png", dpi=300)
+                plt.close()
+                """
+
+                # 2) Normalized flux image
+                plt.figure()
+                plt.imshow(flux / np.nanmedian(flux, axis=0), aspect='auto', vmin=0.99, vmax=1.01)
+                plt.xlabel("Spectral Pixel")
+                plt.ylabel("Integration Number")
+                plt.title("Normalized Flux Image")
+                plt.savefig("Output/flux_w1_0.0_w2_1.0_K100_DEFAULT.png", dpi=300)
+                plt.close()
 
             print(
                 "\n############################################",
@@ -278,8 +305,6 @@ def main():
 
         current[key] = best_val
         fancyprint(f"Best {key} = {best_val} (cost={best_cost:.12f})")
-
-
 
     # total runtime
     t1 = time.perf_counter() - t0_total

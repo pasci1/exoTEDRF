@@ -23,6 +23,8 @@ from exotedrf.stage3 import run_stage3
 # cost (MAD-based)
 # ----------------------------------------
 
+import numpy as np
+
 def cost_function(st3):
     """
     Combined cost = w1 * norm_MAD_white + w2 * norm_MAD_spec
@@ -33,17 +35,18 @@ def cost_function(st3):
     w2 = 1.0 
     flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
 
-    # 1) White-light MAD
-    white = np.nansum(flux, axis=1)               # shape (n_int,)
-    white = white[~np.isnan(white)]               # drop NaNs
+    # 1) White-light MAD (unchanged)
+    white = np.nansum(flux, axis=1)
+    white = white[~np.isnan(white)]
     med_white = np.median(white)
     norm_white = white / med_white
     norm_med_white = np.median(norm_white)
     norm_mad_white = np.median(np.abs(norm_white - norm_med_white))
 
-    # 2) Spectral MAD (per-integration)
+    # 2) Spectral MAD (per‑wavelength median)
     spec = flux
-    norm_spec = spec / np.nanmedian(spec, axis=1, keepdims=True)
+    wave_medians = np.nanmedian(spec, axis=0, keepdims=True)    # shape (1, n_wave)
+    norm_spec = spec / wave_medians                             # broadcast to (n_int, n_wave)
     mad_spec_per_int = np.nanmedian(np.abs(norm_spec - 1.0), axis=1)
     norm_mad_spec = np.nanmedian(mad_spec_per_int)
 
@@ -269,6 +272,7 @@ def main():
                 plt.savefig("Output/norm_white_w1_0.0_w2_1.0_K100_DEFAULT.png", dpi=300)
                 plt.close()
 
+                """
                 plt.figure()
                 x = np.arange(len(norm_white))
                 normed_spec = flux / np.nanmedian(flux, axis=1, keepdims=True)
@@ -280,6 +284,7 @@ def main():
                 plt.grid(True)                # turn on the grid
                 plt.savefig("Output/norm_white_error_w1_0.0_w2_1.0_K100_DEFAULT.png", dpi=300)
                 plt.close()
+                """
 
                 # 2) Normalized flux image
                 plt.figure()
