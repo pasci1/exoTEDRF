@@ -118,10 +118,10 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            #'time_window':              list(range(1,9,2)), # works
+            'time_window':              list(range(5,12,2)), # works
             #'rejection_threshold':     list(range(10,21,1)), # works for Flag_up_ramp = True
-            #'time_rejection_threshold': list(range(9,31,1)), # works           
-            #"nirspec_mask_width":       list(range(9,31,1)), # works
+            'time_rejection_threshold': list(range(5,16,1)), # works           
+            "nirspec_mask_width":       list(range(10,31,2)), # works
         })
     else:  # MIRI
         param_ranges.update({
@@ -133,12 +133,12 @@ def main():
         })
     # for all instruments
     param_ranges.update({
-        #"space_thresh": list(range(1,21,1)),
-        #"time_thresh":  list(range(1,16,1)),
-        #"box_size":     list(range(1,21,1)),  
-        #"window_size":  list(range(1,16,1)),  
-        #"extract_width": list(range(1,21,1 )),
-        "extract_width": [5]
+        "space_thresh": list(range(10,21,1)),
+        "time_thresh":  list(range(5,16,1)),
+        "box_size":     list(range(2,9,1)),  
+        "window_size":  list(range(3,10,2)),  
+        "extract_width": list(range(3,11,1 )),
+   
                 
     })
 
@@ -147,7 +147,7 @@ def main():
     total_steps = sum(len(v) for v in param_ranges.values())
 
     # Logging
-    logf = open("Output/Cost_w1_0.0_w2_1.0_K100_DEFAULT.txt", "w")
+    logf = open("Output/Cost_MAD_w1_0.0_w2_1.0_K60.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
     stage1_keys = [
@@ -258,7 +258,7 @@ def main():
                 norm_med_white = np.median(norm_white)
                 norm_mad_white = np.median(np.abs(norm_white - norm_med_white))
                 spec = flux
-                norm_spec = spec / np.nanmedian(spec, axis=1, keepdims=True)
+                norm_spec = spec / np.nanmedian(spec, axis=0, keepdims=True)
                 mad_spec_per_int = np.nanmedian(np.abs(norm_spec - 1.0), axis=1)
                 norm_mad_spec = np.nanmedian(mad_spec_per_int)
 
@@ -269,22 +269,22 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve")
                 plt.grid(True)           
-                plt.savefig("Output/norm_white_w1_0.0_w2_1.0_K100_DEFAULT.png", dpi=300)
+                plt.savefig("Output/norm_white__MAD_w1_0.0_w2_1.0_K60.png", dpi=300)
                 plt.close()
 
-                """
+                
                 plt.figure()
                 x = np.arange(len(norm_white))
-                normed_spec = flux / np.nanmedian(flux, axis=1, keepdims=True)
-                yerr = np.nanstd(normed_spec, axis=1)
+                normed_spec = flux / np.nanmedian(flux, axis=0, keepdims=True)
+                yerr = np.nanstd(normed_spec, axis=0)
                 plt.errorbar(x, norm_white, yerr=yerr,fmt="o-", capsize=3, elinewidth=1)
                 plt.xlabel("Integration Number")
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve with Errobar")
                 plt.grid(True)                # turn on the grid
-                plt.savefig("Output/norm_white_error_w1_0.0_w2_1.0_K100_DEFAULT.png", dpi=300)
+                plt.savefig("Output/norm_white_error_MAD_w1_0.0_w2_1.0_K60.png", dpi=300)
                 plt.close()
-                """
+                
 
                 # 2) Normalized flux image
                 plt.figure()
@@ -292,7 +292,7 @@ def main():
                 plt.xlabel("Spectral Pixel")
                 plt.ylabel("Integration Number")
                 plt.title("Normalized Flux Image")
-                plt.savefig("Output/flux_w1_0.0_w2_1.0_K100_DEFAULT.png", dpi=300)
+                plt.savefig("Output/flux_MAD_w1_0.0_w2_1.0_K60.png", dpi=300)
                 plt.close()
 
             print(
