@@ -20,7 +20,7 @@ from exotedrf.stage2 import run_stage2
 from exotedrf.stage3 import run_stage3
 
 
-
+"""
 #$1
 
 # ----------------------------------------
@@ -28,11 +28,7 @@ from exotedrf.stage3 import run_stage3
 # ----------------------------------------
 
 def cost_function(st3):
-    """
-    Combined cost = w1 * norm_MAD_white + w2 * norm_MAD_spec
-      - norm_MAD_white = MAD_white / |median_white|
-      - norm_MAD_spec  = MAD_spec  / |median_spectral|
-    """
+ 
     w1 = 0.0
     w2 = 1.0 
     flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
@@ -331,11 +327,7 @@ if __name__ == "__main__":
 # ----------------------------------------
 
 def cost_function(st3):
-    """
-    Combined cost = w1 * norm_MAD_white + w2 * norm_MAD_spec
-      - norm_MAD_white = MAD_white / |median_white|
-      - norm_MAD_spec  = MAD_spec  / |median_spectral|
-    """
+
     w1 = 0.5
     w2 = 0.5 
     flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
@@ -632,11 +624,7 @@ if __name__ == "__main__":
 # ----------------------------------------
 
 def cost_function(st3):
-    """
-    Combined cost = w1 * norm_MAD_white + w2 * norm_MAD_spec
-      - norm_MAD_white = MAD_white / |median_white|
-      - norm_MAD_spec  = MAD_spec  / |median_spectral|
-    """
+
     w1 = 1.0
     w2 = 0.0 
     flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
@@ -923,7 +911,7 @@ def main():
 if __name__ == "__main__":
     main()
 
-
+"""
 
 
 #$4
