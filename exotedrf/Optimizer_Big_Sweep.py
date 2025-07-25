@@ -20,7 +20,7 @@ from exotedrf.stage2 import run_stage2
 from exotedrf.stage3 import run_stage3
 
 
-"""
+
 #$1
 
 # ----------------------------------------
@@ -93,7 +93,7 @@ def main():
 
     # determine integration number (slice) K=
     dm_full = datamodels.open(seg0)
-    K = min(60, dm_full.data.shape[0])
+    K = min(200, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.integration_start = 1
@@ -139,7 +139,7 @@ def main():
     total_steps = sum(len(v) for v in param_ranges.values())
 
     # Logging
-    logf = open("Output/Cost_MAD_w1_0.0_w2_1.0_K60.txt", "w")
+    logf = open("Output/Cost_MAD_w1_0.0_w2_1.0_K155.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
     stage1_keys = [
@@ -260,7 +260,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve")
                 plt.grid(True)           
-                plt.savefig("Output/norm_white_MAD_w1_0.0_w2_1.0_K60.png", dpi=300)
+                plt.savefig("Output/norm_white_MAD_w1_0.0_w2_1.0_K155.png", dpi=300)
                 plt.close()
 
                 plt.figure()
@@ -272,7 +272,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve with Errobar")
                 plt.grid(True)                # turn on the grid
-                plt.savefig("Output/norm_white_error_MAD_w1_0.0_w2_1.0_K60.png", dpi=300)
+                plt.savefig("Output/norm_white_error_MAD_w1_0.0_w2_1.0_K155.png", dpi=300)
                 plt.close()
 
                 # 2) Normalized flux image
@@ -281,7 +281,7 @@ def main():
                 plt.xlabel("Spectral Pixel")
                 plt.ylabel("Integration Number")
                 plt.title("Normalized Flux Image")
-                plt.savefig("Output/flux_MAD_w1_0.0_w2_1.0_K60.png", dpi=300)
+                plt.savefig("Output/flux_MAD_w1_0.0_w2_1.0_K155.png", dpi=300)
                 plt.close()
 
 
@@ -392,7 +392,7 @@ def main():
 
     # determine integration number (slice) K=
     dm_full = datamodels.open(seg0)
-    K = min(60, dm_full.data.shape[0])
+    K = min(200, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.integration_start = 1
@@ -438,7 +438,7 @@ def main():
     total_steps = sum(len(v) for v in param_ranges.values())
 
     # Logging
-    logf = open("Output/Cost_MAD_w1_0.5_w2_0.5_K60.txt", "w")
+    logf = open("Output/Cost_MAD_w1_0.5_w2_0.5_K155.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
     stage1_keys = [
@@ -559,7 +559,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve")
                 plt.grid(True)           
-                plt.savefig("Output/norm_white_MAD_w1_0.5_w2_0.5_K60.png", dpi=300)
+                plt.savefig("Output/norm_white_MAD_w1_0.5_w2_0.5_K155.png", dpi=300)
                 plt.close()
 
                 plt.figure()
@@ -571,7 +571,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve with Errobar")
                 plt.grid(True)                # turn on the grid
-                plt.savefig("Output/norm_white_error_MAD_w1_0.5_w2_0.5_K60.png", dpi=300)
+                plt.savefig("Output/norm_white_error_MAD_w1_0.5_w2_0.5_K155.png", dpi=300)
                 plt.close()
 
                 # 2) Normalized flux image
@@ -580,7 +580,7 @@ def main():
                 plt.xlabel("Spectral Pixel")
                 plt.ylabel("Integration Number")
                 plt.title("Normalized Flux Image")
-                plt.savefig("Output/flux_MAD_w1_0.5_w2_0.5_K60.png", dpi=300)
+                plt.savefig("Output/flux_MAD_w1_0.5_w2_0.5_K155.png", dpi=300)
                 plt.close()
 
 
@@ -689,7 +689,7 @@ def main():
 
     # determine integration number (slice) K=
     dm_full = datamodels.open(seg0)
-    K = min(60, dm_full.data.shape[0])
+    K = min(200, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.integration_start = 1
@@ -735,7 +735,7 @@ def main():
     total_steps = sum(len(v) for v in param_ranges.values())
 
     # Logging
-    logf = open("Output/Cost_MAD_w1_1.0_w2_0.0_K60.txt", "w")
+    logf = open("Output/Cost_MAD_w1_1.0_w2_0.0_K155.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
     stage1_keys = [
@@ -856,7 +856,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve")
                 plt.grid(True)           
-                plt.savefig("Output/norm_white_MAD_w1_1.0_w2_0.0_K60.png", dpi=300)
+                plt.savefig("Output/norm_white_MAD_w1_1.0_w2_0.0_K155.png", dpi=300)
                 plt.close()
 
                 plt.figure()
@@ -868,7 +868,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve with Errobar")
                 plt.grid(True)                # turn on the grid
-                plt.savefig("Output/norm_white_error_MAD_w1_1.0_w2_0.0_K60.png", dpi=300)
+                plt.savefig("Output/norm_white_error_MAD_w1_1.0_w2_0.0_K155.png", dpi=300)
                 plt.close()
 
                 # 2) Normalized flux image
@@ -877,7 +877,7 @@ def main():
                 plt.xlabel("Spectral Pixel")
                 plt.ylabel("Integration Number")
                 plt.title("Normalized Flux Image")
-                plt.savefig("Output/flux_MAD_w1_1.0_w2_0.0_K60.png", dpi=300)
+                plt.savefig("Output/flux_MAD_w1_1.0_w2_0.0_K155.png", dpi=300)
                 plt.close()
 
 
@@ -911,9 +911,9 @@ def main():
 if __name__ == "__main__":
     main()
 
+
+
 """
-
-
 #$4
 
 # ----------------------------------------
@@ -921,11 +921,7 @@ if __name__ == "__main__":
 # ----------------------------------------
 
 def cost_function(st3):
-    """
-    Combined cost = w1 * norm_MAD_white + w2 * norm_MAD_spec
-      - norm_MAD_white = MAD_white / |median_white|
-      - norm_MAD_spec  = MAD_spec  / |median_spectral|
-    """
+   
     w1 = 0.0
     w2 = 1.0 
     flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
@@ -1224,11 +1220,7 @@ if __name__ == "__main__":
 # ----------------------------------------
 
 def cost_function(st3):
-    """
-    Combined cost = w1 * norm_MAD_white + w2 * norm_MAD_spec
-      - norm_MAD_white = MAD_white / |median_white|
-      - norm_MAD_spec  = MAD_spec  / |median_spectral|
-    """
+ 
     w1 = 0.5
     w2 = 0.5 
     flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
@@ -1525,11 +1517,7 @@ if __name__ == "__main__":
 # ----------------------------------------
 
 def cost_function(st3):
-    """
-    Combined cost = w1 * norm_MAD_white + w2 * norm_MAD_spec
-      - norm_MAD_white = MAD_white / |median_white|
-      - norm_MAD_spec  = MAD_spec  / |median_spectral|
-    """
+   
     w1 = 1.0
     w2 = 0.0 
     flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
@@ -1815,3 +1803,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+"""
