@@ -24,30 +24,28 @@ from exotedrf.stage3 import run_stage3
 #$1
 
 # ----------------------------------------
-# cost (MAD-based)
+# cost (P2P-based)
 # ----------------------------------------
 
 def cost_function(st3):
- 
-    w1 = 0.0
-    w2 = 1.0 
-    flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
+    w1= 0.0
+    w2 = 1.0
+    flux = np.asarray(st3['Flux'], float)
 
-    # 1) White-light scatter (as before)
+    # white-light
     white = np.nansum(flux, axis=1)
     white = white[~np.isnan(white)]
-    med_white = np.median(white)
-    norm_white = white / med_white
-    norm_mad_white = np.nanmedian(np.abs(norm_white - np.median(norm_white)))
+    norm_white = white/np.median(white)
+    d2_white = 0.5*(norm_white[:-2] + norm_white[2:]) - norm_white[1:-1]
+    ptp2_white = np.nanmedian(np.abs(d2_white))
 
-    # 2) Spectral scatter over time (per-wavelength channels)
-    spec = flux
-    wave_meds = np.nanmedian(spec, axis=0, keepdims=True)
-    norm_spec = spec / wave_meds                   # (n_int, n_wave)
-    mad_spec_per_wave = np.nanmedian(np.abs(norm_spec - 1.0), axis=0)
-    norm_mad_spec = np.nanmedian(mad_spec_per_wave)
+    # spectral
+    wave_meds = np.nanmedian(flux, axis=0, keepdims=True)
+    norm_spec = flux / wave_meds
+    d2_spec = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
+    ptp2_spec = np.nanmedian(np.nanmedian(np.abs(d2_spec), axis=0))
 
-    return w1 * norm_mad_white + w2 * norm_mad_spec
+    return w1*ptp2_white + w2*ptp2_spec
 
 # ----------------------------------------
 # main
@@ -93,7 +91,7 @@ def main():
 
     # determine integration number (slice) K=
     dm_full = datamodels.open(seg0)
-    K = min(200, dm_full.data.shape[0])
+    K = min(60, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.integration_start = 1
@@ -139,7 +137,7 @@ def main():
     total_steps = sum(len(v) for v in param_ranges.values())
 
     # Logging
-    logf = open("Output/Cost_MAD_w1_0.0_w2_1.0_K155.txt", "w")
+    logf = open("Output/Cost_P2P_w1_0.0_w2_1.0_K60.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
     stage1_keys = [
@@ -260,7 +258,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve")
                 plt.grid(True)           
-                plt.savefig("Output/norm_white_MAD_w1_0.0_w2_1.0_K155.png", dpi=300)
+                plt.savefig("Output/norm_white_P2P_w1_0.0_w2_1.0_K60.png", dpi=300)
                 plt.close()
 
                 plt.figure()
@@ -272,7 +270,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve with Errobar")
                 plt.grid(True)                # turn on the grid
-                plt.savefig("Output/norm_white_error_MAD_w1_0.0_w2_1.0_K155.png", dpi=300)
+                plt.savefig("Output/norm_white_error_P2P_w1_0.0_w2_1.0_K60.png", dpi=300)
                 plt.close()
 
                 # 2) Normalized flux image
@@ -281,7 +279,7 @@ def main():
                 plt.xlabel("Spectral Pixel")
                 plt.ylabel("Integration Number")
                 plt.title("Normalized Flux Image")
-                plt.savefig("Output/flux_MAD_w1_0.0_w2_1.0_K155.png", dpi=300)
+                plt.savefig("Output/flux_P2P_w1_0.0_w2_1.0_K60.png", dpi=300)
                 plt.close()
 
 
@@ -323,30 +321,28 @@ if __name__ == "__main__":
 #$2
 
 # ----------------------------------------
-# cost (MAD-based)
+# cost (P2P-based)
 # ----------------------------------------
 
 def cost_function(st3):
+    w1= 0.5
+    w2 = 0.5
+    flux = np.asarray(st3['Flux'], float)
 
-    w1 = 0.5
-    w2 = 0.5 
-    flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
-
-    # 1) White-light scatter (as before)
+    # white-light
     white = np.nansum(flux, axis=1)
     white = white[~np.isnan(white)]
-    med_white = np.median(white)
-    norm_white = white / med_white
-    norm_mad_white = np.nanmedian(np.abs(norm_white - np.median(norm_white)))
+    norm_white = white/np.median(white)
+    d2_white = 0.5*(norm_white[:-2] + norm_white[2:]) - norm_white[1:-1]
+    ptp2_white = np.nanmedian(np.abs(d2_white))
 
-    # 2) Spectral scatter over time (per-wavelength channels)
-    spec = flux
-    wave_meds = np.nanmedian(spec, axis=0, keepdims=True)
-    norm_spec = spec / wave_meds                   # (n_int, n_wave)
-    mad_spec_per_wave = np.nanmedian(np.abs(norm_spec - 1.0), axis=0)
-    norm_mad_spec = np.nanmedian(mad_spec_per_wave)
+    # spectral
+    wave_meds = np.nanmedian(flux, axis=0, keepdims=True)
+    norm_spec = flux / wave_meds
+    d2_spec = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
+    ptp2_spec = np.nanmedian(np.nanmedian(np.abs(d2_spec), axis=0))
 
-    return w1 * norm_mad_white + w2 * norm_mad_spec
+    return w1*ptp2_white + w2*ptp2_spec
 
 # ----------------------------------------
 # main
@@ -392,7 +388,7 @@ def main():
 
     # determine integration number (slice) K=
     dm_full = datamodels.open(seg0)
-    K = min(200, dm_full.data.shape[0])
+    K = min(60, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.integration_start = 1
@@ -438,7 +434,7 @@ def main():
     total_steps = sum(len(v) for v in param_ranges.values())
 
     # Logging
-    logf = open("Output/Cost_MAD_w1_0.5_w2_0.5_K155.txt", "w")
+    logf = open("Output/Cost_P2P_w1_0.5_w2_0.5_K60.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
     stage1_keys = [
@@ -559,7 +555,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve")
                 plt.grid(True)           
-                plt.savefig("Output/norm_white_MAD_w1_0.5_w2_0.5_K155.png", dpi=300)
+                plt.savefig("Output/norm_white_P2P_w1_0.5_w2_0.5_K60.png", dpi=300)
                 plt.close()
 
                 plt.figure()
@@ -571,7 +567,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve with Errobar")
                 plt.grid(True)                # turn on the grid
-                plt.savefig("Output/norm_white_error_MAD_w1_0.5_w2_0.5_K155.png", dpi=300)
+                plt.savefig("Output/norm_white_error_P2P_w1_0.5_w2_0.5_K60.png", dpi=300)
                 plt.close()
 
                 # 2) Normalized flux image
@@ -580,7 +576,7 @@ def main():
                 plt.xlabel("Spectral Pixel")
                 plt.ylabel("Integration Number")
                 plt.title("Normalized Flux Image")
-                plt.savefig("Output/flux_MAD_w1_0.5_w2_0.5_K155.png", dpi=300)
+                plt.savefig("Output/flux_P2P_w1_0.5_w2_0.5_K60.png", dpi=300)
                 plt.close()
 
 
@@ -620,30 +616,28 @@ if __name__ == "__main__":
 #$3
 
 # ----------------------------------------
-# cost (MAD-based)
+# cost (P2P-based)
 # ----------------------------------------
 
 def cost_function(st3):
+    w1= 1.0
+    w2 = 0.0
+    flux = np.asarray(st3['Flux'], float)
 
-    w1 = 1.0
-    w2 = 0.0 
-    flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
-
-    # 1) White-light scatter (as before)
+    # white-light
     white = np.nansum(flux, axis=1)
     white = white[~np.isnan(white)]
-    med_white = np.median(white)
-    norm_white = white / med_white
-    norm_mad_white = np.nanmedian(np.abs(norm_white - np.median(norm_white)))
+    norm_white = white/np.median(white)
+    d2_white = 0.5*(norm_white[:-2] + norm_white[2:]) - norm_white[1:-1]
+    ptp2_white = np.nanmedian(np.abs(d2_white))
 
-    # 2) Spectral scatter over time (per-wavelength channels)
-    spec = flux
-    wave_meds = np.nanmedian(spec, axis=0, keepdims=True)
-    norm_spec = spec / wave_meds                   # (n_int, n_wave)
-    mad_spec_per_wave = np.nanmedian(np.abs(norm_spec - 1.0), axis=0)
-    norm_mad_spec = np.nanmedian(mad_spec_per_wave)
+    # spectral
+    wave_meds = np.nanmedian(flux, axis=0, keepdims=True)
+    norm_spec = flux / wave_meds
+    d2_spec = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
+    ptp2_spec = np.nanmedian(np.nanmedian(np.abs(d2_spec), axis=0))
 
-    return w1 * norm_mad_white + w2 * norm_mad_spec
+    return w1*ptp2_white + w2*ptp2_spec
 
 # ----------------------------------------
 # main
@@ -689,7 +683,7 @@ def main():
 
     # determine integration number (slice) K=
     dm_full = datamodels.open(seg0)
-    K = min(200, dm_full.data.shape[0])
+    K = min(60, dm_full.data.shape[0])
     dm_slice = dm_full.copy()
     dm_slice.data = dm_full.data[:K]
     dm_slice.meta.exposure.integration_start = 1
@@ -735,7 +729,7 @@ def main():
     total_steps = sum(len(v) for v in param_ranges.values())
 
     # Logging
-    logf = open("Output/Cost_MAD_w1_1.0_w2_0.0_K155.txt", "w")
+    logf = open("Output/Cost_P2P_w1_1.0_w2_0.0_K60.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
     stage1_keys = [
@@ -856,7 +850,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve")
                 plt.grid(True)           
-                plt.savefig("Output/norm_white_MAD_w1_1.0_w2_0.0_K155.png", dpi=300)
+                plt.savefig("Output/norm_white_P2P_w1_1.0_w2_0.0_K60.png", dpi=300)
                 plt.close()
 
                 plt.figure()
@@ -868,7 +862,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve with Errobar")
                 plt.grid(True)                # turn on the grid
-                plt.savefig("Output/norm_white_error_MAD_w1_1.0_w2_0.0_K155.png", dpi=300)
+                plt.savefig("Output/norm_white_error_P2P_w1_1.0_w2_0.0_K60.png", dpi=300)
                 plt.close()
 
                 # 2) Normalized flux image
@@ -877,7 +871,7 @@ def main():
                 plt.xlabel("Spectral Pixel")
                 plt.ylabel("Integration Number")
                 plt.title("Normalized Flux Image")
-                plt.savefig("Output/flux_MAD_w1_1.0_w2_0.0_K155.png", dpi=300)
+                plt.savefig("Output/flux_P2P_w1_1.0_w2_0.0_K60.png", dpi=300)
                 plt.close()
 
 
@@ -913,34 +907,33 @@ if __name__ == "__main__":
 
 
 
-"""
+
+
 #$4
 
 # ----------------------------------------
-# cost (MAD-based)
+# cost (P2P-based)
 # ----------------------------------------
 
 def cost_function(st3):
-   
-    w1 = 0.0
-    w2 = 1.0 
-    flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
+    w1= 0.0
+    w2 = 1.0
+    flux = np.asarray(st3['Flux'], float)
 
-    # 1) White-light scatter (as before)
+    # white-light
     white = np.nansum(flux, axis=1)
     white = white[~np.isnan(white)]
-    med_white = np.median(white)
-    norm_white = white / med_white
-    norm_mad_white = np.nanmedian(np.abs(norm_white - np.median(norm_white)))
+    norm_white = white/np.median(white)
+    d2_white = 0.5*(norm_white[:-2] + norm_white[2:]) - norm_white[1:-1]
+    ptp2_white = np.nanmedian(np.abs(d2_white))
 
-    # 2) Spectral scatter over time (per-wavelength channels)
-    spec = flux
-    wave_meds = np.nanmedian(spec, axis=0, keepdims=True)
-    norm_spec = spec / wave_meds                   # (n_int, n_wave)
-    mad_spec_per_wave = np.nanmedian(np.abs(norm_spec - 1.0), axis=0)
-    norm_mad_spec = np.nanmedian(mad_spec_per_wave)
+    # spectral
+    wave_meds = np.nanmedian(flux, axis=0, keepdims=True)
+    norm_spec = flux / wave_meds
+    d2_spec = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
+    ptp2_spec = np.nanmedian(np.nanmedian(np.abs(d2_spec), axis=0))
 
-    return w1 * norm_mad_white + w2 * norm_mad_spec
+    return w1*ptp2_white + w2*ptp2_spec
 
 # ----------------------------------------
 # main
@@ -1032,7 +1025,7 @@ def main():
     total_steps = sum(len(v) for v in param_ranges.values())
 
     # Logging
-    logf = open("Output/Cost_MAD_w1_0.0_w2_1.0_K100.txt", "w")
+    logf = open("Output/Cost_P2P_w1_0.0_w2_1.0_K100.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
     stage1_keys = [
@@ -1153,7 +1146,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve")
                 plt.grid(True)           
-                plt.savefig("Output/norm_white_MAD_w1_0.0_w2_1.0_K100.png", dpi=300)
+                plt.savefig("Output/norm_white_P2P_w1_0.0_w2_1.0_K100.png", dpi=300)
                 plt.close()
 
                 plt.figure()
@@ -1165,7 +1158,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve with Errobar")
                 plt.grid(True)                # turn on the grid
-                plt.savefig("Output/norm_white_error_MAD_w1_0.0_w2_1.0_K100.png", dpi=300)
+                plt.savefig("Output/norm_white_error_P2P_w1_0.0_w2_1.0_K100.png", dpi=300)
                 plt.close()
 
                 # 2) Normalized flux image
@@ -1174,7 +1167,7 @@ def main():
                 plt.xlabel("Spectral Pixel")
                 plt.ylabel("Integration Number")
                 plt.title("Normalized Flux Image")
-                plt.savefig("Output/flux_MAD_w1_0.0_w2_1.0_K100.png", dpi=300)
+                plt.savefig("Output/flux_P2P_w1_0.0_w2_1.0_K100.png", dpi=300)
                 plt.close()
 
 
@@ -1216,30 +1209,28 @@ if __name__ == "__main__":
 #$5
 
 # ----------------------------------------
-# cost (MAD-based)
+# cost (P2P-based)
 # ----------------------------------------
 
 def cost_function(st3):
- 
-    w1 = 0.5
-    w2 = 0.5 
-    flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
+    w1= 0.5
+    w2 = 0.5
+    flux = np.asarray(st3['Flux'], float)
 
-    # 1) White-light scatter (as before)
+    # white-light
     white = np.nansum(flux, axis=1)
     white = white[~np.isnan(white)]
-    med_white = np.median(white)
-    norm_white = white / med_white
-    norm_mad_white = np.nanmedian(np.abs(norm_white - np.median(norm_white)))
+    norm_white = white/np.median(white)
+    d2_white = 0.5*(norm_white[:-2] + norm_white[2:]) - norm_white[1:-1]
+    ptp2_white = np.nanmedian(np.abs(d2_white))
 
-    # 2) Spectral scatter over time (per-wavelength channels)
-    spec = flux
-    wave_meds = np.nanmedian(spec, axis=0, keepdims=True)
-    norm_spec = spec / wave_meds                   # (n_int, n_wave)
-    mad_spec_per_wave = np.nanmedian(np.abs(norm_spec - 1.0), axis=0)
-    norm_mad_spec = np.nanmedian(mad_spec_per_wave)
+    # spectral
+    wave_meds = np.nanmedian(flux, axis=0, keepdims=True)
+    norm_spec = flux / wave_meds
+    d2_spec = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
+    ptp2_spec = np.nanmedian(np.nanmedian(np.abs(d2_spec), axis=0))
 
-    return w1 * norm_mad_white + w2 * norm_mad_spec
+    return w1*ptp2_white + w2*ptp2_spec
 
 # ----------------------------------------
 # main
@@ -1331,7 +1322,7 @@ def main():
     total_steps = sum(len(v) for v in param_ranges.values())
 
     # Logging
-    logf = open("Output/Cost_MAD_w1_0.5_w2_0.5_K100.txt", "w")
+    logf = open("Output/Cost_P2P_w1_0.5_w2_0.5_K100.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
     stage1_keys = [
@@ -1452,7 +1443,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve")
                 plt.grid(True)           
-                plt.savefig("Output/norm_white_MAD_w1_0.5_w2_0.5_K100.png", dpi=300)
+                plt.savefig("Output/norm_white_P2P_w1_0.5_w2_0.5_K100.png", dpi=300)
                 plt.close()
 
                 plt.figure()
@@ -1464,7 +1455,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve with Errobar")
                 plt.grid(True)                # turn on the grid
-                plt.savefig("Output/norm_white_error_MAD_w1_0.5_w2_0.5_K100.png", dpi=300)
+                plt.savefig("Output/norm_white_error_P2P_w1_0.5_w2_0.5_K100.png", dpi=300)
                 plt.close()
 
                 # 2) Normalized flux image
@@ -1473,7 +1464,7 @@ def main():
                 plt.xlabel("Spectral Pixel")
                 plt.ylabel("Integration Number")
                 plt.title("Normalized Flux Image")
-                plt.savefig("Output/flux_MAD_w1_0.5_w2_0.5_K100.png", dpi=300)
+                plt.savefig("Output/flux_P2P_w1_0.5_w2_0.5_K100.png", dpi=300)
                 plt.close()
 
 
@@ -1509,34 +1500,32 @@ if __name__ == "__main__":
 
 
 
- 
+
 #$6
 
 # ----------------------------------------
-# cost (MAD-based)
+# cost (P2P-based)
 # ----------------------------------------
 
 def cost_function(st3):
-   
-    w1 = 1.0
-    w2 = 0.0 
-    flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
+    w1= 1.0
+    w2 = 0.0
+    flux = np.asarray(st3['Flux'], float)
 
-    # 1) White-light scatter (as before)
+    # white-light
     white = np.nansum(flux, axis=1)
     white = white[~np.isnan(white)]
-    med_white = np.median(white)
-    norm_white = white / med_white
-    norm_mad_white = np.nanmedian(np.abs(norm_white - np.median(norm_white)))
+    norm_white = white/np.median(white)
+    d2_white = 0.5*(norm_white[:-2] + norm_white[2:]) - norm_white[1:-1]
+    ptp2_white = np.nanmedian(np.abs(d2_white))
 
-    # 2) Spectral scatter over time (per-wavelength channels)
-    spec = flux
-    wave_meds = np.nanmedian(spec, axis=0, keepdims=True)
-    norm_spec = spec / wave_meds                   # (n_int, n_wave)
-    mad_spec_per_wave = np.nanmedian(np.abs(norm_spec - 1.0), axis=0)
-    norm_mad_spec = np.nanmedian(mad_spec_per_wave)
+    # spectral
+    wave_meds = np.nanmedian(flux, axis=0, keepdims=True)
+    norm_spec = flux / wave_meds
+    d2_spec = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
+    ptp2_spec = np.nanmedian(np.nanmedian(np.abs(d2_spec), axis=0))
 
-    return w1 * norm_mad_white + w2 * norm_mad_spec
+    return w1*ptp2_white + w2*ptp2_spec
 
 # ----------------------------------------
 # main
@@ -1628,7 +1617,7 @@ def main():
     total_steps = sum(len(v) for v in param_ranges.values())
 
     # Logging
-    logf = open("Output/Cost_MAD_w1_1.0_w2_0.0_K100.txt", "w")
+    logf = open("Output/Cost_P2P_w1_1.0_w2_0.0_K100.txt", "w")
     logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
 
     stage1_keys = [
@@ -1749,7 +1738,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve")
                 plt.grid(True)           
-                plt.savefig("Output/norm_white_MAD_w1_1.0_w2_0.0_K100.png", dpi=300)
+                plt.savefig("Output/norm_white_P2P_w1_1.0_w2_0.0_K100.png", dpi=300)
                 plt.close()
 
                 plt.figure()
@@ -1761,7 +1750,7 @@ def main():
                 plt.ylabel("Normalized White Flux")
                 plt.title("Normalized White-light Curve with Errobar")
                 plt.grid(True)                # turn on the grid
-                plt.savefig("Output/norm_white_error_MAD_w1_1.0_w2_0.0_K100.png", dpi=300)
+                plt.savefig("Output/norm_white_error_P2P_w1_1.0_w2_0.0_K100.png", dpi=300)
                 plt.close()
 
                 # 2) Normalized flux image
@@ -1770,7 +1759,7 @@ def main():
                 plt.xlabel("Spectral Pixel")
                 plt.ylabel("Integration Number")
                 plt.title("Normalized Flux Image")
-                plt.savefig("Output/flux_MAD_w1_1.0_w2_0.0_K100.png", dpi=300)
+                plt.savefig("Output/flux_P2P_w1_1.0_w2_0.0_K100.png", dpi=300)
                 plt.close()
 
 
@@ -1804,4 +1793,895 @@ def main():
 if __name__ == "__main__":
     main()
 
-"""
+
+
+
+
+
+
+
+#$7
+
+# ----------------------------------------
+# cost (P2P-based)
+# ----------------------------------------
+
+def cost_function(st3):
+    w1= 0.0
+    w2 = 1.0
+    flux = np.asarray(st3['Flux'], float)
+
+    # white-light
+    white = np.nansum(flux, axis=1)
+    white = white[~np.isnan(white)]
+    norm_white = white/np.median(white)
+    d2_white = 0.5*(norm_white[:-2] + norm_white[2:]) - norm_white[1:-1]
+    ptp2_white = np.nanmedian(np.abs(d2_white))
+
+    # spectral
+    wave_meds = np.nanmedian(flux, axis=0, keepdims=True)
+    norm_spec = flux / wave_meds
+    d2_spec = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
+    ptp2_spec = np.nanmedian(np.nanmedian(np.abs(d2_spec), axis=0))
+
+    return w1*ptp2_white + w2*ptp2_spec
+
+# ----------------------------------------
+# main
+# ----------------------------------------
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Coordinate‐descent optimizer for exoTEDRF Stages 1–3"
+    )
+    parser.add_argument(
+        "--config", default="run_DMS.yaml",
+        help="Path to your DMS config YAML"
+    )
+    parser.add_argument(
+        "--instrument", required=True,
+        choices=["NIRISS", "NIRSPEC", "MIRI"],
+        help="Which instrument to optimize"
+    )
+    args = parser.parse_args()
+
+
+    t0_total = time.perf_counter()
+    cfg = parse_config(args.config)
+
+    # get input data
+    input_files = unpack_input_dir(
+        cfg["input_dir"],
+        mode=cfg["observing_mode"],
+        filetag=cfg["input_filetag"],
+        filter_detector=cfg["filter_detector"],
+    )
+    if not input_files:
+        fancyprint(f"[WARN] No files in {cfg['input_dir']}, globbing *.fits")
+        input_files = sorted(glob.glob(os.path.join(cfg["input_dir"], "*.fits")))
+    if not input_files:
+        raise RuntimeError(f"No FITS found in {cfg['input_dir']}")
+    fancyprint(f"Using {len(input_files)} segment(s) from {cfg['input_dir']}")
+
+    seg0 = os.path.join(
+        cfg['input_dir'],
+        "jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
+    )
+
+    # determine integration number (slice) K=
+    dm_full = datamodels.open(seg0)
+    K = min(200, dm_full.data.shape[0])
+    dm_slice = dm_full.copy()
+    dm_slice.data = dm_full.data[:K]
+    dm_slice.meta.exposure.integration_start = 1
+    dm_slice.meta.exposure.integration_end = K
+    dm_slice.meta.exposure.nints = K
+    dm_full.close()
+
+    # Parameter to SWEEP sweep
+    param_ranges = {}
+    if args.instrument == "NIRISS":
+        param_ranges.update({
+            "soss_inner_mask_width": [20, 40, 80],
+            "soss_outer_mask_width": [35, 70, 140],
+            "jump_threshold": [5, 15, 30],
+            "time_jump_threshold": [3, 10, 20],
+        })
+    elif args.instrument == "NIRSPEC":
+        param_ranges.update({
+            'time_window':              list(range(5,12,2)), # works
+            #'rejection_threshold':     list(range(10,21,1)), # works for Flag_up_ramp = True
+            'time_rejection_threshold': list(range(5,16,1)), # works           
+            "nirspec_mask_width":       list(range(10,31,2)), # works
+        })
+    else:  # MIRI
+        param_ranges.update({
+            #"miri_drop_groups": [6, 12, 24],
+            #"jump_threshold": [5, 15, 30],
+            #"time_jump_threshold": [3, 10, 20],
+            #"miri_trace_width": [10, 20, 40], 
+            #"miri_background_width": [7, 14, 28],
+        })
+    # for all instruments
+    param_ranges.update({
+        "space_thresh": list(range(10,21,1)),
+        "time_thresh":  list(range(5,16,1)),
+        "box_size":     list(range(2,9,1)),  
+        "window_size":  list(range(3,10,2)),  
+        "extract_width": list(range(3,11,1 )),      
+    })
+
+    param_order = list(param_ranges.keys())
+    current = {k: int(np.median(v)) for k, v in param_ranges.items()}
+    total_steps = sum(len(v) for v in param_ranges.values())
+
+    # Logging
+    logf = open("Output/Cost_P2P_w1_0.0_w2_1.0_K155.txt", "w")
+    logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
+
+    stage1_keys = [
+        "rejection_threshold", "time_rejection_threshold",
+        "nirspec_mask_width", "soss_inner_mask_width",
+        "soss_outer_mask_width", "miri_drop_groups",
+    ]
+    
+    stage2_keys = [
+        "space_thresh", "time_thresh",      
+        "time_window",                      
+        "miri_trace_width", "miri_background_width",
+    ]
+
+
+    stage3_keys = ["extract_width"]
+
+    count = 1
+    # coordinate descent
+    for key in param_order:
+        fancyprint(
+            f"→ Optimizing {key} "
+            f"(fixed-other={{{', '.join([f'{k}:{current[k]}' for k in current if k != key])}}})"
+        )
+        best_cost, best_val = None, current[key]
+        for trial in param_ranges[key]:
+            fancyprint(f"Step {count}/{total_steps}: {key}={trial}")
+            trial_params = {**current, key: trial}
+
+            nints = dm_slice.data.shape[0]
+            print("\033[1;91mnints is:\033[0m", nints)
+            baseline_ints = [10,-10]
+
+            t0 = time.perf_counter()
+            s1_args = {k: trial_params[k] for k in stage1_keys if k in trial_params}
+            s2_args = {k: trial_params[k] for k in stage2_keys if k in trial_params}
+            s3_args = {k: trial_params[k] for k in stage3_keys if k in trial_params}
+
+            # Inherit Parameters (2nd level)
+            if "time_window" in trial_params:
+                s1_args["JumpStep"] = {"time_window": trial_params["time_window"]}
+            
+            badpix = {}
+            if "box_size"   in trial_params:
+                badpix["box_size"]   = trial_params["box_size"]
+            if "window_size" in trial_params:
+                badpix["window_size"] = trial_params["window_size"]
+            if badpix:
+                s2_args["BadPixStep"] = badpix
+
+            print(
+                "\n############################################",
+                f"\n Step: {count}/{total_steps} starting {key}={trial}",
+                "\n############################################\n",
+                flush=True
+            )
+
+            st1 = run_stage1( 
+                [dm_slice],
+                mode=cfg["observing_mode"],
+                baseline_ints=baseline_ints,
+                flag_up_ramp=False, # Problem
+                save_results=False,
+                skip_steps=[],
+                **s1_args
+            )
+
+            st2, centroids = run_stage2(
+                st1,
+                mode=cfg["observing_mode"],
+                baseline_ints=baseline_ints,
+                save_results=False,
+                skip_steps=[],
+                **s2_args,
+                **cfg.get("stage2_kwargs", {})
+            ) 
+            if isinstance(centroids, np.ndarray):
+                centroids = pd.DataFrame(centroids.T, columns=["xpos", "ypos"])
+            st3 = run_stage3(
+                st2,
+                centroids=centroids,
+                save_results=False,
+                skip_steps=[],
+                **s3_args,
+                **cfg.get("stage3_kwargs", {})
+            )
+
+
+            dt = time.perf_counter() - t0
+            cost = cost_function(st3)
+            fancyprint(f"→ cost = {cost:.12f} in {dt:.1f}s")
+
+            logf.write(
+                "\t".join(str(trial_params[k]) for k in param_order)
+                + f"\t{dt:.1f}\t{cost:.12f}\n"
+            )
+            if best_cost is None or cost < best_cost:
+                best_cost, best_val = cost, trial
+
+                
+
+                flux = np.asarray(st3['Flux'], dtype=float)
+                white = np.nansum(flux, axis=1)
+                white = white[~np.isnan(white)]
+                med_white = np.median(white)
+                norm_white = white / med_white
+                norm_med_white = np.median(norm_white)
+                norm_mad_white = np.nanmedian(np.abs(norm_white - norm_med_white))
+                spec = flux
+                norm_spec = spec / np.nanmedian(spec, axis=0, keepdims=True)
+                mad_spec_per_int = np.nanmedian(np.abs(norm_spec - 1.0), axis=1)
+                norm_mad_spec = np.nanmedian(mad_spec_per_int)
+
+                # 1) Normalized white-light curve
+                plt.figure()
+                plt.plot(norm_white, marker='o')
+                plt.xlabel("Integration Number")
+                plt.ylabel("Normalized White Flux")
+                plt.title("Normalized White-light Curve")
+                plt.grid(True)           
+                plt.savefig("Output/norm_white_P2P_w1_0.0_w2_1.0_K155.png", dpi=300)
+                plt.close()
+
+                plt.figure()
+                x = np.arange(len(norm_white))
+                normed_spec = flux / np.nanmedian(flux, axis=0, keepdims=True)
+                yerr = np.nanstd(normed_spec, axis=1)
+                plt.errorbar(x, norm_white, yerr=yerr,fmt="o-", capsize=3, elinewidth=1)
+                plt.xlabel("Integration Number")
+                plt.ylabel("Normalized White Flux")
+                plt.title("Normalized White-light Curve with Errobar")
+                plt.grid(True)                # turn on the grid
+                plt.savefig("Output/norm_white_error_P2P_w1_0.0_w2_1.0_K155.png", dpi=300)
+                plt.close()
+
+                # 2) Normalized flux image
+                plt.figure()
+                plt.imshow(flux / np.nanmedian(flux, axis=0), aspect='auto', vmin=0.99, vmax=1.01)
+                plt.xlabel("Spectral Pixel")
+                plt.ylabel("Integration Number")
+                plt.title("Normalized Flux Image")
+                plt.savefig("Output/flux_P2P_w1_0.0_w2_1.0_K155.png", dpi=300)
+                plt.close()
+
+
+
+            print(
+                "\n############################################",
+                f"\n Step: {count}/{total_steps} completed (dt={dt:.1f}s)",
+                "\n############################################\n",
+                flush=True
+            )            
+
+            print("\033[1m\033[94m========== Cost ==========\033[0m",'\n', cost,'\n')
+
+            count += 1
+
+        current[key] = best_val
+        fancyprint(f"Best {key} = {best_val} (cost={best_cost:.12f})")
+
+    # total runtime
+    t1 = time.perf_counter() - t0_total
+    h, m = divmod(int(t1), 3600)
+    m, s = divmod(m, 60)
+    runtime_str = f"TOTAL runtime: {h}h {m:02d}min {s:04.1f}s\n"
+    fancyprint(runtime_str)
+    logf.write(runtime_str)
+
+    logf.close()
+    fancyprint("=== FINAL OPTIMUM ===")
+    fancyprint(current)
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+
+#$8
+
+# ----------------------------------------
+# cost (P2P-based)
+# ----------------------------------------
+
+def cost_function(st3):
+    w1= 0.5
+    w2 = 0.5
+    flux = np.asarray(st3['Flux'], float)
+
+    # white-light
+    white = np.nansum(flux, axis=1)
+    white = white[~np.isnan(white)]
+    norm_white = white/np.median(white)
+    d2_white = 0.5*(norm_white[:-2] + norm_white[2:]) - norm_white[1:-1]
+    ptp2_white = np.nanmedian(np.abs(d2_white))
+
+    # spectral
+    wave_meds = np.nanmedian(flux, axis=0, keepdims=True)
+    norm_spec = flux / wave_meds
+    d2_spec = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
+    ptp2_spec = np.nanmedian(np.nanmedian(np.abs(d2_spec), axis=0))
+
+    return w1*ptp2_white + w2*ptp2_spec
+
+# ----------------------------------------
+# main
+# ----------------------------------------
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Coordinate‐descent optimizer for exoTEDRF Stages 1–3"
+    )
+    parser.add_argument(
+        "--config", default="run_DMS.yaml",
+        help="Path to your DMS config YAML"
+    )
+    parser.add_argument(
+        "--instrument", required=True,
+        choices=["NIRISS", "NIRSPEC", "MIRI"],
+        help="Which instrument to optimize"
+    )
+    args = parser.parse_args()
+
+
+    t0_total = time.perf_counter()
+    cfg = parse_config(args.config)
+
+    # get input data
+    input_files = unpack_input_dir(
+        cfg["input_dir"],
+        mode=cfg["observing_mode"],
+        filetag=cfg["input_filetag"],
+        filter_detector=cfg["filter_detector"],
+    )
+    if not input_files:
+        fancyprint(f"[WARN] No files in {cfg['input_dir']}, globbing *.fits")
+        input_files = sorted(glob.glob(os.path.join(cfg["input_dir"], "*.fits")))
+    if not input_files:
+        raise RuntimeError(f"No FITS found in {cfg['input_dir']}")
+    fancyprint(f"Using {len(input_files)} segment(s) from {cfg['input_dir']}")
+
+    seg0 = os.path.join(
+        cfg['input_dir'],
+        "jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
+    )
+
+    # determine integration number (slice) K=
+    dm_full = datamodels.open(seg0)
+    K = min(200, dm_full.data.shape[0])
+    dm_slice = dm_full.copy()
+    dm_slice.data = dm_full.data[:K]
+    dm_slice.meta.exposure.integration_start = 1
+    dm_slice.meta.exposure.integration_end = K
+    dm_slice.meta.exposure.nints = K
+    dm_full.close()
+
+    # Parameter to SWEEP sweep
+    param_ranges = {}
+    if args.instrument == "NIRISS":
+        param_ranges.update({
+            "soss_inner_mask_width": [20, 40, 80],
+            "soss_outer_mask_width": [35, 70, 140],
+            "jump_threshold": [5, 15, 30],
+            "time_jump_threshold": [3, 10, 20],
+        })
+    elif args.instrument == "NIRSPEC":
+        param_ranges.update({
+            'time_window':              list(range(5,12,2)), # works
+            #'rejection_threshold':     list(range(10,21,1)), # works for Flag_up_ramp = True
+            'time_rejection_threshold': list(range(5,16,1)), # works           
+            "nirspec_mask_width":       list(range(10,31,2)), # works
+        })
+    else:  # MIRI
+        param_ranges.update({
+            #"miri_drop_groups": [6, 12, 24],
+            #"jump_threshold": [5, 15, 30],
+            #"time_jump_threshold": [3, 10, 20],
+            #"miri_trace_width": [10, 20, 40], 
+            #"miri_background_width": [7, 14, 28],
+        })
+    # for all instruments
+    param_ranges.update({
+        "space_thresh": list(range(10,21,1)),
+        "time_thresh":  list(range(5,16,1)),
+        "box_size":     list(range(2,9,1)),  
+        "window_size":  list(range(3,10,2)),  
+        "extract_width": list(range(3,11,1 )),      
+    })
+
+    param_order = list(param_ranges.keys())
+    current = {k: int(np.median(v)) for k, v in param_ranges.items()}
+    total_steps = sum(len(v) for v in param_ranges.values())
+
+    # Logging
+    logf = open("Output/Cost_P2P_w1_0.5_w2_0.5_K155.txt", "w")
+    logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
+
+    stage1_keys = [
+        "rejection_threshold", "time_rejection_threshold",
+        "nirspec_mask_width", "soss_inner_mask_width",
+        "soss_outer_mask_width", "miri_drop_groups",
+    ]
+    
+    stage2_keys = [
+        "space_thresh", "time_thresh",      
+        "time_window",                      
+        "miri_trace_width", "miri_background_width",
+    ]
+
+
+    stage3_keys = ["extract_width"]
+
+    count = 1
+    # coordinate descent
+    for key in param_order:
+        fancyprint(
+            f"→ Optimizing {key} "
+            f"(fixed-other={{{', '.join([f'{k}:{current[k]}' for k in current if k != key])}}})"
+        )
+        best_cost, best_val = None, current[key]
+        for trial in param_ranges[key]:
+            fancyprint(f"Step {count}/{total_steps}: {key}={trial}")
+            trial_params = {**current, key: trial}
+
+            nints = dm_slice.data.shape[0]
+            print("\033[1;91mnints is:\033[0m", nints)
+            baseline_ints = [10,-10]
+
+            t0 = time.perf_counter()
+            s1_args = {k: trial_params[k] for k in stage1_keys if k in trial_params}
+            s2_args = {k: trial_params[k] for k in stage2_keys if k in trial_params}
+            s3_args = {k: trial_params[k] for k in stage3_keys if k in trial_params}
+
+            # Inherit Parameters (2nd level)
+            if "time_window" in trial_params:
+                s1_args["JumpStep"] = {"time_window": trial_params["time_window"]}
+            
+            badpix = {}
+            if "box_size"   in trial_params:
+                badpix["box_size"]   = trial_params["box_size"]
+            if "window_size" in trial_params:
+                badpix["window_size"] = trial_params["window_size"]
+            if badpix:
+                s2_args["BadPixStep"] = badpix
+
+            print(
+                "\n############################################",
+                f"\n Step: {count}/{total_steps} starting {key}={trial}",
+                "\n############################################\n",
+                flush=True
+            )
+
+            st1 = run_stage1( 
+                [dm_slice],
+                mode=cfg["observing_mode"],
+                baseline_ints=baseline_ints,
+                flag_up_ramp=False, # Problem
+                save_results=False,
+                skip_steps=[],
+                **s1_args
+            )
+
+            st2, centroids = run_stage2(
+                st1,
+                mode=cfg["observing_mode"],
+                baseline_ints=baseline_ints,
+                save_results=False,
+                skip_steps=[],
+                **s2_args,
+                **cfg.get("stage2_kwargs", {})
+            ) 
+            if isinstance(centroids, np.ndarray):
+                centroids = pd.DataFrame(centroids.T, columns=["xpos", "ypos"])
+            st3 = run_stage3(
+                st2,
+                centroids=centroids,
+                save_results=False,
+                skip_steps=[],
+                **s3_args,
+                **cfg.get("stage3_kwargs", {})
+            )
+
+
+            dt = time.perf_counter() - t0
+            cost = cost_function(st3)
+            fancyprint(f"→ cost = {cost:.12f} in {dt:.1f}s")
+
+            logf.write(
+                "\t".join(str(trial_params[k]) for k in param_order)
+                + f"\t{dt:.1f}\t{cost:.12f}\n"
+            )
+            if best_cost is None or cost < best_cost:
+                best_cost, best_val = cost, trial
+
+                
+
+                flux = np.asarray(st3['Flux'], dtype=float)
+                white = np.nansum(flux, axis=1)
+                white = white[~np.isnan(white)]
+                med_white = np.median(white)
+                norm_white = white / med_white
+                norm_med_white = np.median(norm_white)
+                norm_mad_white = np.nanmedian(np.abs(norm_white - norm_med_white))
+                spec = flux
+                norm_spec = spec / np.nanmedian(spec, axis=0, keepdims=True)
+                mad_spec_per_int = np.nanmedian(np.abs(norm_spec - 1.0), axis=1)
+                norm_mad_spec = np.nanmedian(mad_spec_per_int)
+
+                # 1) Normalized white-light curve
+                plt.figure()
+                plt.plot(norm_white, marker='o')
+                plt.xlabel("Integration Number")
+                plt.ylabel("Normalized White Flux")
+                plt.title("Normalized White-light Curve")
+                plt.grid(True)           
+                plt.savefig("Output/norm_white_P2P_w1_0.5_w2_0.5_K155.png", dpi=300)
+                plt.close()
+
+                plt.figure()
+                x = np.arange(len(norm_white))
+                normed_spec = flux / np.nanmedian(flux, axis=0, keepdims=True)
+                yerr = np.nanstd(normed_spec, axis=1)
+                plt.errorbar(x, norm_white, yerr=yerr,fmt="o-", capsize=3, elinewidth=1)
+                plt.xlabel("Integration Number")
+                plt.ylabel("Normalized White Flux")
+                plt.title("Normalized White-light Curve with Errobar")
+                plt.grid(True)                # turn on the grid
+                plt.savefig("Output/norm_white_error_P2P_w1_0.5_w2_0.5_K155.png", dpi=300)
+                plt.close()
+
+                # 2) Normalized flux image
+                plt.figure()
+                plt.imshow(flux / np.nanmedian(flux, axis=0), aspect='auto', vmin=0.99, vmax=1.01)
+                plt.xlabel("Spectral Pixel")
+                plt.ylabel("Integration Number")
+                plt.title("Normalized Flux Image")
+                plt.savefig("Output/flux_P2P_w1_0.5_w2_0.5_K155.png", dpi=300)
+                plt.close()
+
+
+
+            print(
+                "\n############################################",
+                f"\n Step: {count}/{total_steps} completed (dt={dt:.1f}s)",
+                "\n############################################\n",
+                flush=True
+            )            
+
+            print("\033[1m\033[94m========== Cost ==========\033[0m",'\n', cost,'\n')
+
+            count += 1
+
+        current[key] = best_val
+        fancyprint(f"Best {key} = {best_val} (cost={best_cost:.12f})")
+
+    # total runtime
+    t1 = time.perf_counter() - t0_total
+    h, m = divmod(int(t1), 3600)
+    m, s = divmod(m, 60)
+    runtime_str = f"TOTAL runtime: {h}h {m:02d}min {s:04.1f}s\n"
+    fancyprint(runtime_str)
+    logf.write(runtime_str)
+
+    logf.close()
+    fancyprint("=== FINAL OPTIMUM ===")
+    fancyprint(current)
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+#$9
+
+# ----------------------------------------
+# cost (P2P-based)
+# ----------------------------------------
+
+def cost_function(st3):
+    w1= 1.0
+    w2 = 0.0
+    flux = np.asarray(st3['Flux'], float)
+
+    # white-light
+    white = np.nansum(flux, axis=1)
+    white = white[~np.isnan(white)]
+    norm_white = white/np.median(white)
+    d2_white = 0.5*(norm_white[:-2] + norm_white[2:]) - norm_white[1:-1]
+    ptp2_white = np.nanmedian(np.abs(d2_white))
+
+    # spectral
+    wave_meds = np.nanmedian(flux, axis=0, keepdims=True)
+    norm_spec = flux / wave_meds
+    d2_spec = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
+    ptp2_spec = np.nanmedian(np.nanmedian(np.abs(d2_spec), axis=0))
+
+    return w1*ptp2_white + w2*ptp2_spec
+
+# ----------------------------------------
+# main
+# ----------------------------------------
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Coordinate‐descent optimizer for exoTEDRF Stages 1–3"
+    )
+    parser.add_argument(
+        "--config", default="run_DMS.yaml",
+        help="Path to your DMS config YAML"
+    )
+    parser.add_argument(
+        "--instrument", required=True,
+        choices=["NIRISS", "NIRSPEC", "MIRI"],
+        help="Which instrument to optimize"
+    )
+    args = parser.parse_args()
+
+
+    t0_total = time.perf_counter()
+    cfg = parse_config(args.config)
+
+    # get input data
+    input_files = unpack_input_dir(
+        cfg["input_dir"],
+        mode=cfg["observing_mode"],
+        filetag=cfg["input_filetag"],
+        filter_detector=cfg["filter_detector"],
+    )
+    if not input_files:
+        fancyprint(f"[WARN] No files in {cfg['input_dir']}, globbing *.fits")
+        input_files = sorted(glob.glob(os.path.join(cfg["input_dir"], "*.fits")))
+    if not input_files:
+        raise RuntimeError(f"No FITS found in {cfg['input_dir']}")
+    fancyprint(f"Using {len(input_files)} segment(s) from {cfg['input_dir']}")
+
+    seg0 = os.path.join(
+        cfg['input_dir'],
+        "jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
+    )
+
+    # determine integration number (slice) K=
+    dm_full = datamodels.open(seg0)
+    K = min(200, dm_full.data.shape[0])
+    dm_slice = dm_full.copy()
+    dm_slice.data = dm_full.data[:K]
+    dm_slice.meta.exposure.integration_start = 1
+    dm_slice.meta.exposure.integration_end = K
+    dm_slice.meta.exposure.nints = K
+    dm_full.close()
+
+    # Parameter to SWEEP sweep
+    param_ranges = {}
+    if args.instrument == "NIRISS":
+        param_ranges.update({
+            "soss_inner_mask_width": [20, 40, 80],
+            "soss_outer_mask_width": [35, 70, 140],
+            "jump_threshold": [5, 15, 30],
+            "time_jump_threshold": [3, 10, 20],
+        })
+    elif args.instrument == "NIRSPEC":
+        param_ranges.update({
+            'time_window':              list(range(5,12,2)), # works
+            #'rejection_threshold':     list(range(10,21,1)), # works for Flag_up_ramp = True
+            'time_rejection_threshold': list(range(5,16,1)), # works           
+            "nirspec_mask_width":       list(range(10,31,2)), # works
+        })
+    else:  # MIRI
+        param_ranges.update({
+            #"miri_drop_groups": [6, 12, 24],
+            #"jump_threshold": [5, 15, 30],
+            #"time_jump_threshold": [3, 10, 20],
+            #"miri_trace_width": [10, 20, 40], 
+            #"miri_background_width": [7, 14, 28],
+        })
+    # for all instruments
+    param_ranges.update({
+        "space_thresh": list(range(10,21,1)),
+        "time_thresh":  list(range(5,16,1)),
+        "box_size":     list(range(2,9,1)),  
+        "window_size":  list(range(3,10,2)),  
+        "extract_width": list(range(3,11,1 )),      
+    })
+
+    param_order = list(param_ranges.keys())
+    current = {k: int(np.median(v)) for k, v in param_ranges.items()}
+    total_steps = sum(len(v) for v in param_ranges.values())
+
+    # Logging
+    logf = open("Output/Cost_P2P_w1_1.0_w2_0.0_K155.txt", "w")
+    logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
+
+    stage1_keys = [
+        "rejection_threshold", "time_rejection_threshold",
+        "nirspec_mask_width", "soss_inner_mask_width",
+        "soss_outer_mask_width", "miri_drop_groups",
+    ]
+    
+    stage2_keys = [
+        "space_thresh", "time_thresh",      
+        "time_window",                      
+        "miri_trace_width", "miri_background_width",
+    ]
+
+
+    stage3_keys = ["extract_width"]
+
+    count = 1
+    # coordinate descent
+    for key in param_order:
+        fancyprint(
+            f"→ Optimizing {key} "
+            f"(fixed-other={{{', '.join([f'{k}:{current[k]}' for k in current if k != key])}}})"
+        )
+        best_cost, best_val = None, current[key]
+        for trial in param_ranges[key]:
+            fancyprint(f"Step {count}/{total_steps}: {key}={trial}")
+            trial_params = {**current, key: trial}
+
+            nints = dm_slice.data.shape[0]
+            print("\033[1;91mnints is:\033[0m", nints)
+            baseline_ints = [10,-10]
+
+            t0 = time.perf_counter()
+            s1_args = {k: trial_params[k] for k in stage1_keys if k in trial_params}
+            s2_args = {k: trial_params[k] for k in stage2_keys if k in trial_params}
+            s3_args = {k: trial_params[k] for k in stage3_keys if k in trial_params}
+
+            # Inherit Parameters (2nd level)
+            if "time_window" in trial_params:
+                s1_args["JumpStep"] = {"time_window": trial_params["time_window"]}
+            
+            badpix = {}
+            if "box_size"   in trial_params:
+                badpix["box_size"]   = trial_params["box_size"]
+            if "window_size" in trial_params:
+                badpix["window_size"] = trial_params["window_size"]
+            if badpix:
+                s2_args["BadPixStep"] = badpix
+
+            print(
+                "\n############################################",
+                f"\n Step: {count}/{total_steps} starting {key}={trial}",
+                "\n############################################\n",
+                flush=True
+            )
+
+            st1 = run_stage1( 
+                [dm_slice],
+                mode=cfg["observing_mode"],
+                baseline_ints=baseline_ints,
+                flag_up_ramp=False, # Problem
+                save_results=False,
+                skip_steps=[],
+                **s1_args
+            )
+
+            st2, centroids = run_stage2(
+                st1,
+                mode=cfg["observing_mode"],
+                baseline_ints=baseline_ints,
+                save_results=False,
+                skip_steps=[],
+                **s2_args,
+                **cfg.get("stage2_kwargs", {})
+            ) 
+            if isinstance(centroids, np.ndarray):
+                centroids = pd.DataFrame(centroids.T, columns=["xpos", "ypos"])
+            st3 = run_stage3(
+                st2,
+                centroids=centroids,
+                save_results=False,
+                skip_steps=[],
+                **s3_args,
+                **cfg.get("stage3_kwargs", {})
+            )
+
+
+            dt = time.perf_counter() - t0
+            cost = cost_function(st3)
+            fancyprint(f"→ cost = {cost:.12f} in {dt:.1f}s")
+
+            logf.write(
+                "\t".join(str(trial_params[k]) for k in param_order)
+                + f"\t{dt:.1f}\t{cost:.12f}\n"
+            )
+            if best_cost is None or cost < best_cost:
+                best_cost, best_val = cost, trial
+
+                
+
+                flux = np.asarray(st3['Flux'], dtype=float)
+                white = np.nansum(flux, axis=1)
+                white = white[~np.isnan(white)]
+                med_white = np.median(white)
+                norm_white = white / med_white
+                norm_med_white = np.median(norm_white)
+                norm_mad_white = np.nanmedian(np.abs(norm_white - norm_med_white))
+                spec = flux
+                norm_spec = spec / np.nanmedian(spec, axis=0, keepdims=True)
+                mad_spec_per_int = np.nanmedian(np.abs(norm_spec - 1.0), axis=1)
+                norm_mad_spec = np.nanmedian(mad_spec_per_int)
+
+                # 1) Normalized white-light curve
+                plt.figure()
+                plt.plot(norm_white, marker='o')
+                plt.xlabel("Integration Number")
+                plt.ylabel("Normalized White Flux")
+                plt.title("Normalized White-light Curve")
+                plt.grid(True)           
+                plt.savefig("Output/norm_white_P2P_w1_1.0_w2_0.0_K155.png", dpi=300)
+                plt.close()
+
+                plt.figure()
+                x = np.arange(len(norm_white))
+                normed_spec = flux / np.nanmedian(flux, axis=0, keepdims=True)
+                yerr = np.nanstd(normed_spec, axis=1)
+                plt.errorbar(x, norm_white, yerr=yerr,fmt="o-", capsize=3, elinewidth=1)
+                plt.xlabel("Integration Number")
+                plt.ylabel("Normalized White Flux")
+                plt.title("Normalized White-light Curve with Errobar")
+                plt.grid(True)                # turn on the grid
+                plt.savefig("Output/norm_white_error_P2P_w1_1.0_w2_0.0_K155.png", dpi=300)
+                plt.close()
+
+                # 2) Normalized flux image
+                plt.figure()
+                plt.imshow(flux / np.nanmedian(flux, axis=0), aspect='auto', vmin=0.99, vmax=1.01)
+                plt.xlabel("Spectral Pixel")
+                plt.ylabel("Integration Number")
+                plt.title("Normalized Flux Image")
+                plt.savefig("Output/flux_P2P_w1_1.0_w2_0.0_K155.png", dpi=300)
+                plt.close()
+
+
+
+            print(
+                "\n############################################",
+                f"\n Step: {count}/{total_steps} completed (dt={dt:.1f}s)",
+                "\n############################################\n",
+                flush=True
+            )            
+
+            print("\033[1m\033[94m========== Cost ==========\033[0m",'\n', cost,'\n')
+
+            count += 1
+
+        current[key] = best_val
+        fancyprint(f"Best {key} = {best_val} (cost={best_cost:.12f})")
+
+    # total runtime
+    t1 = time.perf_counter() - t0_total
+    h, m = divmod(int(t1), 3600)
+    m, s = divmod(m, 60)
+    runtime_str = f"TOTAL runtime: {h}h {m:02d}min {s:04.1f}s\n"
+    fancyprint(runtime_str)
+    logf.write(runtime_str)
+
+    logf.close()
+    fancyprint("=== FINAL OPTIMUM ===")
+    fancyprint(current)
+
+if __name__ == "__main__":
+    main()
+
+
