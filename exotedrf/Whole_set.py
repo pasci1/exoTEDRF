@@ -33,10 +33,10 @@ def histogram(name_str, table_height=0.5):
     # Load data
     df = pd.read_csv(f"OUT/Cost_{name_str}.txt", delimiter="\t")
 
-    # Drop last row if it's not numeric in the cost column
-    df = df[pd.to_numeric(df["cost"], errors="coerce").notna()].reset_index(drop=True)
+    # Drop rows with non-numeric cost values
+    df = df[pd.to_numeric(df["cost_whole_set"], errors="coerce").notna()].reset_index(drop=True)
 
-    # Get parameter columns (excluding duration_s and cost)
+    # Get parameter columns (excluding duration_s and cost columns)
     param_cols = df.columns[:-3]
 
     # Track changed parameter and labels
@@ -79,11 +79,11 @@ def histogram(name_str, table_height=0.5):
     for i in range(len(sweep_boundaries) - 1):
         start = sweep_boundaries[i]
         end = sweep_boundaries[i+1]
-        min_idx = df.iloc[start:end]["cost"].idxmin()
+        min_idx = df.iloc[start:end]["cost_whole_set"].idxmin()
         colors[min_idx] = 'green'
 
     # Best overall row
-    best_row = df.loc[df["cost"].idxmin(), param_cols.tolist() + ["cost"]].copy()
+    best_row = df.loc[df["cost_whole_set"].idxmin(), param_cols.tolist() + ["cost_whole_set"]].copy()
 
     for col in best_row.index:
         val = best_row[col]
@@ -99,7 +99,7 @@ def histogram(name_str, table_height=0.5):
     ax_table = fig.add_subplot(gs[1])
 
     # Main plot
-    ax_plot.scatter(df["changed_label"], df["cost"], color=colors)
+    ax_plot.scatter(df["changed_label"], df["cost_whole_set"], color=colors)
     for x in sweep_lines:
         ax_plot.axvline(x=x - 0.5, color='gray', linestyle='--', linewidth=1)
 
@@ -120,7 +120,7 @@ def histogram(name_str, table_height=0.5):
         loc='center'
     )
 
-    table.scale(1,1)  # slightly expand cells
+    table.scale(1, 1)  # slightly expand cells
 
     # Set consistent, visible font size
     desired_fontsize = 14
@@ -245,7 +245,7 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            'time_window':              list(range(5,12,2)), # works
+            'time_window':              list(range(5,9,2)), # works
             ##'rejection_threshold':     list(range(10,21,1)), # works for Flag_up_ramp = True
             #'time_rejection_threshold': list(range(5,16,1)), # works           
             #"nirspec_mask_width":       list(range(10,31,2)), # works
@@ -265,6 +265,7 @@ def main():
         #"box_size":     list(range(2,9,1)),  
         #"window_size":  list(range(3,10,2)),  
         #"extract_width": list(range(3,11,1 )),      
+        "extract_width": [6]
     })
 
     param_order = list(param_ranges.keys())
@@ -450,6 +451,7 @@ def main():
     logf.close()
     fancyprint("=== FINAL OPTIMUM ===")
     fancyprint(current)
+    histogram(name_str)
 
 if __name__ == "__main__":
     main()
@@ -457,7 +459,7 @@ if __name__ == "__main__":
 
 
 
-
+"""
 #$2
 
 # ----------------------------------------
@@ -778,6 +780,7 @@ def main():
     logf.close()
     fancyprint("=== FINAL OPTIMUM ===")
     fancyprint(current)
+    histogram(name_str)
 
 if __name__ == "__main__":
     main()
@@ -1106,11 +1109,13 @@ def main():
     logf.close()
     fancyprint("=== FINAL OPTIMUM ===")
     fancyprint(current)
+    histogram(name_str)
 
 if __name__ == "__main__":
     main()
 
 
 
-
+"""
+print("DONE")
 
