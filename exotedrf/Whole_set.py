@@ -37,7 +37,7 @@ def histogram(name_str, table_height=0.5):
     df = df[pd.to_numeric(df["cost"], errors="coerce").notna()].reset_index(drop=True)
 
     # Get parameter columns (excluding duration_s and cost)
-    param_cols = df.columns[:-2]
+    param_cols = df.columns[:-3]
 
     # Track changed parameter and labels
     labels = []
@@ -99,7 +99,7 @@ def histogram(name_str, table_height=0.5):
     ax_table = fig.add_subplot(gs[1])
 
     # Main plot
-    ax_plot.bar(df["changed_label"], df["cost"], color=colors)
+    ax_plot.scatter(df["changed_label"], df["cost"], color=colors)
     for x in sweep_lines:
         ax_plot.axvline(x=x - 0.5, color='gray', linestyle='--', linewidth=1)
 
@@ -139,7 +139,7 @@ def histogram(name_str, table_height=0.5):
 # cost (P2P-based)
 # ----------------------------------------
 
-name_str = 'P2P_spec_whole'
+name_str = 'P2P_spec_whole_small'
 
 def cost_function(st3):
     w1= 0.0
@@ -223,7 +223,7 @@ def main():
     seg0.meta.exposure.nints = stacked_data.shape[0]  # update number of integrations
 
     # 6. Use seg0 just like before:
-    K = min(500, seg0.data.shape[0])
+    K = min(60, seg0.data.shape[0])
     dm_slice = seg0.copy()
     dm_slice.data = seg0.data[:K]
     dm_slice.meta.exposure.integration_start = 1
@@ -246,9 +246,9 @@ def main():
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
             'time_window':              list(range(5,12,2)), # works
-            #'rejection_threshold':     list(range(10,21,1)), # works for Flag_up_ramp = True
-            'time_rejection_threshold': list(range(5,16,1)), # works           
-            "nirspec_mask_width":       list(range(10,31,2)), # works
+            ##'rejection_threshold':     list(range(10,21,1)), # works for Flag_up_ramp = True
+            #'time_rejection_threshold': list(range(5,16,1)), # works           
+            #"nirspec_mask_width":       list(range(10,31,2)), # works
         })
     else:  # MIRI
         param_ranges.update({
@@ -260,11 +260,11 @@ def main():
         })
     # for all instruments
     param_ranges.update({
-        "space_thresh": list(range(5,16,1)),
-        "time_thresh":  list(range(5,16,1)),
-        "box_size":     list(range(2,9,1)),  
-        "window_size":  list(range(3,10,2)),  
-        "extract_width": list(range(3,11,1 )),      
+        #"space_thresh": list(range(5,16,1)),
+        #"time_thresh":  list(range(5,16,1)),
+        #"box_size":     list(range(2,9,1)),  
+        #"window_size":  list(range(3,10,2)),  
+        #"extract_width": list(range(3,11,1 )),      
     })
 
     param_order = list(param_ranges.keys())
@@ -363,14 +363,11 @@ def main():
 
             dt = time.perf_counter() - t0
 
-            dm_baseline = st3.copy()
-            dm_baseline.data = st3.data[:100]
-            dm_baseline.meta.exposure.integration_start = 1
-            dm_baseline.meta.exposure.integration_end = 100
-            dm_baseline.meta.exposure.nints = 100
-
+            # Compute cost on the full dataset
             cost = cost_function(st3)
-            cost_baseline = cost_function(dm_baseline)
+
+            # Compute cost on the first 100 integrations only
+            cost_baseline = cost_function({"Flux": st3["Flux"][:100]})
 
             fancyprint(f"→ cost = {cost:.12f} in {dt:.1f}s")
 
