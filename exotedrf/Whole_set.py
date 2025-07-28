@@ -123,7 +123,7 @@ def histogram(name_str, table_height=0.5):
     table.scale(1, 1)  # slightly expand cells
 
     # Set consistent, visible font size
-    desired_fontsize = 14
+    desired_fontsize = 12
     for key, cell in table.get_celld().items():
         cell.set_fontsize(desired_fontsize)
 
@@ -139,7 +139,7 @@ def histogram(name_str, table_height=0.5):
 # cost (P2P-based)
 # ----------------------------------------
 
-name_str = 'P2P_spec_whole_small'
+name_str = 'P2P_spec_whole'
 
 def cost_function(st3):
     w1= 0.0
@@ -223,7 +223,7 @@ def main():
     seg0.meta.exposure.nints = stacked_data.shape[0]  # update number of integrations
 
     # 6. Use seg0 just like before:
-    K = min(60, seg0.data.shape[0])
+    K = min(500, seg0.data.shape[0])
     dm_slice = seg0.copy()
     dm_slice.data = seg0.data[:K]
     dm_slice.meta.exposure.integration_start = 1
@@ -245,10 +245,10 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            'time_window':              list(range(5,9,2)), # works
-            ##'rejection_threshold':     list(range(10,21,1)), # works for Flag_up_ramp = True
-            #'time_rejection_threshold': list(range(5,16,1)), # works           
-            #"nirspec_mask_width":       list(range(10,31,2)), # works
+            'time_window':              list(range(5,12,2)), # works
+            #'rejection_threshold':     list(range(10,21,1)), # works for Flag_up_ramp = True
+            'time_rejection_threshold': list(range(5,16,1)), # works           
+            "nirspec_mask_width":       list(range(10,31,2)), # works
         })
     else:  # MIRI
         param_ranges.update({
@@ -260,12 +260,12 @@ def main():
         })
     # for all instruments
     param_ranges.update({
-        #"space_thresh": list(range(5,16,1)),
-        #"time_thresh":  list(range(5,16,1)),
-        #"box_size":     list(range(2,9,1)),  
-        #"window_size":  list(range(3,10,2)),  
-        #"extract_width": list(range(3,11,1 )),      
-        "extract_width": [6]
+        "space_thresh": list(range(5,16,1)),
+        "time_thresh":  list(range(5,16,1)),
+        "box_size":     list(range(2,9,1)),  
+        "window_size":  list(range(3,10,2)),  
+        "extract_width": list(range(3,11,1 )),      
+  
     })
 
     param_order = list(param_ranges.keys())
@@ -336,7 +336,7 @@ def main():
                 mode=cfg["observing_mode"],
                 baseline_ints=baseline_ints,
                 flag_up_ramp=False, # Problem
-                save_results=False,
+                save_results=True,
                 skip_steps=[],
                 **s1_args
             )
@@ -345,7 +345,7 @@ def main():
                 st1,
                 mode=cfg["observing_mode"],
                 baseline_ints=baseline_ints,
-                save_results=False,
+                save_results=True,
                 skip_steps=[],
                 **s2_args,
                 **cfg.get("stage2_kwargs", {})
@@ -355,7 +355,7 @@ def main():
             st3 = run_stage3(
                 st2,
                 centroids=centroids,
-                save_results=False,
+                save_results=True,
                 skip_steps=[],
                 **s3_args,
                 **cfg.get("stage3_kwargs", {})
@@ -459,7 +459,7 @@ if __name__ == "__main__":
 
 
 
-"""
+
 #$2
 
 # ----------------------------------------
@@ -662,7 +662,7 @@ def main():
                 mode=cfg["observing_mode"],
                 baseline_ints=baseline_ints,
                 flag_up_ramp=False, # Problem
-                save_results=False,
+                save_results=True,
                 skip_steps=[],
                 **s1_args
             )
@@ -671,7 +671,7 @@ def main():
                 st1,
                 mode=cfg["observing_mode"],
                 baseline_ints=baseline_ints,
-                save_results=False,
+                save_results=True,
                 skip_steps=[],
                 **s2_args,
                 **cfg.get("stage2_kwargs", {})
@@ -681,7 +681,7 @@ def main():
             st3 = run_stage3(
                 st2,
                 centroids=centroids,
-                save_results=False,
+                save_results=True,
                 skip_steps=[],
                 **s3_args,
                 **cfg.get("stage3_kwargs", {})
@@ -991,7 +991,7 @@ def main():
                 mode=cfg["observing_mode"],
                 baseline_ints=baseline_ints,
                 flag_up_ramp=False, # Problem
-                save_results=False,
+                save_results=True,
                 skip_steps=[],
                 **s1_args
             )
@@ -1000,7 +1000,7 @@ def main():
                 st1,
                 mode=cfg["observing_mode"],
                 baseline_ints=baseline_ints,
-                save_results=False,
+                save_results=True,
                 skip_steps=[],
                 **s2_args,
                 **cfg.get("stage2_kwargs", {})
@@ -1010,7 +1010,7 @@ def main():
             st3 = run_stage3(
                 st2,
                 centroids=centroids,
-                save_results=False,
+                save_results=True,
                 skip_steps=[],
                 **s3_args,
                 **cfg.get("stage3_kwargs", {})
@@ -1116,6 +1116,4 @@ if __name__ == "__main__":
 
 
 
-"""
-print("DONE")
 
