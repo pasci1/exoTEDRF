@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 from exotedrf.utils import parse_config, unpack_input_dir, fancyprint
 from exotedrf.stage1 import run_stage1
 from exotedrf.stage2 import run_stage2
-from exotedrf.stage3 import run_stage3
+from exotedrf.stage3 import run_stage3 
 
 
 
@@ -318,6 +318,7 @@ def main():
                     baseline_ints=baseline_ints,
                     flag_up_ramp=False,
                     save_results=False,
+                    force_redo=True,
                     skip_steps=[],
                     **s1_args
                 )
@@ -328,6 +329,7 @@ def main():
                     mode=cfg["observing_mode"],
                     baseline_ints=baseline_ints,
                     save_results=False,
+                    force_redo=True,
                     skip_steps=[],
                     **s2_args,
                     **cfg.get("stage2_kwargs",{})
@@ -340,6 +342,7 @@ def main():
                     st2,
                     centroids=centroids,
                     save_results=False,
+                    force_redo=True,
                     skip_steps=[],
                     **s3_args,
                     **cfg.get("stage3_kwargs",{})
@@ -577,6 +580,7 @@ def main():
                     baseline_ints=baseline_ints,
                     flag_up_ramp=False,
                     save_results=False,
+                    force_redo=True,
                     skip_steps=[],
                     **s1_args
                 )
@@ -587,6 +591,7 @@ def main():
                     mode=cfg["observing_mode"],
                     baseline_ints=baseline_ints,
                     save_results=False,
+                    force_redo=True,
                     skip_steps=[],
                     **s2_args,
                     **cfg.get("stage2_kwargs",{})
@@ -599,6 +604,7 @@ def main():
                     st2,
                     centroids=centroids,
                     save_results=False,
+                    force_redo=True,
                     skip_steps=[],
                     **s3_args,
                     **cfg.get("stage3_kwargs",{})
@@ -836,6 +842,7 @@ def main():
                     baseline_ints=baseline_ints,
                     flag_up_ramp=False,
                     save_results=False,
+                    force_redo=True,
                     skip_steps=[],
                     **s1_args
                 )
@@ -846,6 +853,7 @@ def main():
                     mode=cfg["observing_mode"],
                     baseline_ints=baseline_ints,
                     save_results=False,
+                    force_redo=True,
                     skip_steps=[],
                     **s2_args,
                     **cfg.get("stage2_kwargs",{})
@@ -858,6 +866,7 @@ def main():
                     st2,
                     centroids=centroids,
                     save_results=False,
+                    force_redo=True,
                     skip_steps=[],
                     **s3_args,
                     **cfg.get("stage3_kwargs",{})
