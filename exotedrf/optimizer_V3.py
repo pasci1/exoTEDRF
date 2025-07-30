@@ -22,7 +22,7 @@ from exotedrf.stage3 import run_stage3
 
 #########################################
 name_str = 'P2P_spec_whole_V3'
-uncal_indir = 'DMS_uncal/'  # Where our uncalibrated files are found.
+uncal_indir = 'Optimize_WASP39b/DMS_uncal/'  # Where our uncalibrated files are found.
 outdir_s1 = 'pipeline_outputs_directory/Stage1/'
 outdir_s2 = 'pipeline_outputs_directory/Stage2/'
 outdir_s3 = 'pipeline_outputs_directory/Stage3/'
