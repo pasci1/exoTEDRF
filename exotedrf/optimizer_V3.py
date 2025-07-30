@@ -566,7 +566,7 @@ def main():
 
 
             cost, scatter        = cost_function(st3)
-            flux100 = st3["Flux"].values[:100]
+            flux100 = np.asarray(st3["Flux"], float)[:100]
             cost_base, _   = cost_function({"Flux": flux100})
 
             print("\n\n\n ********################************33 \n\n\n")
