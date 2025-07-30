@@ -385,7 +385,7 @@ def main():
                     baseline_ints=baseline_ints,
                     flag_up_ramp=False,
                     save_results=True,
-                    force_redo=True,
+                    force_redo=False,
                     skip_steps=[],
                     **s1_args
                 )
@@ -396,7 +396,7 @@ def main():
                     mode=cfg["observing_mode"],
                     baseline_ints=baseline_ints,
                     save_results=True,
-                    force_redo=True,
+                    force_redo=False,
                     skip_steps=[],
                     **s2_args,
                     **cfg.get("stage2_kwargs",{})
@@ -409,7 +409,7 @@ def main():
                     st2,
                     centroids=centroids,
                     save_results=True,
-                    force_redo=True,
+                    force_redo=False,
                     skip_steps=[],
                     **s3_args,
                     **cfg.get("stage3_kwargs",{})
@@ -564,7 +564,8 @@ def main():
 
 
             cost, scatter        = cost_function(st3)
-            cost_base, _   = cost_function({"Flux": st3[:100]})
+            flux100 = st3["Flux"].values[:100]
+            cost_base, _   = cost_function({"Flux": flux100})
 
             dt = time.perf_counter() - t0
             fancyprint(f"→ cost = {cost:.12f} in {dt:.1f}s")
