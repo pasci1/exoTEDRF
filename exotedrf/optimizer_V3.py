@@ -567,6 +567,8 @@ def main():
             flux100 = st3["Flux"].values[:100]
             cost_base, _   = cost_function({"Flux": flux100})
 
+            print("\n\n\n ********################************33 \n\n\n")
+
             dt = time.perf_counter() - t0
             fancyprint(f"→ cost = {cost:.12f} in {dt:.1f}s")
 
