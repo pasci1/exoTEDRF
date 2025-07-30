@@ -396,7 +396,7 @@ def main():
                     mode=cfg["observing_mode"],
                     baseline_ints=baseline_ints,
                     save_results=True,
-                    force_redo=False,
+                    force_redo=True,
                     skip_steps=[],
                     **s2_args,
                     **cfg.get("stage2_kwargs",{})
@@ -409,7 +409,7 @@ def main():
                     st2,
                     centroids=centroids,
                     save_results=True,
-                    force_redo=False,
+                    force_redo=True,
                     skip_steps=[],
                     **s3_args,
                     **cfg.get("stage3_kwargs",{})
