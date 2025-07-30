@@ -562,6 +562,8 @@ def main():
                         **cfg.get("stage3_kwargs",{})
                     )
 
+            print("\n\n\n ********################************22 \n\n\n")
+
 
             cost, scatter        = cost_function(st3)
             flux100 = st3["Flux"].values[:100]
