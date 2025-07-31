@@ -22,6 +22,7 @@ from exotedrf.stage2 import run_stage2
 from exotedrf.stage3 import run_stage3
 
 #########################################
+K_base = int(150)
 name_str = 'P2P_spec_whole_V3'
 uncal_indir = 'Optimize_WASP39b/DMS_uncal/'  # Where our uncalibrated files are found.
 outdir_s1 = 'pipeline_outputs_directory/Stage1/'
@@ -351,7 +352,8 @@ def main():
         for trial in param_ranges[key]:
             fancyprint(f"Step {count}/{total_steps}: {key}={trial}")
             trial_params = {**current, key: trial}
-            baseline_ints = [150]
+
+            baseline_ints = [K_base]
 
             t0 = time.perf_counter()
 
@@ -577,8 +579,8 @@ def main():
 
 
             cost, scatter        = cost_function(st3)
-            flux100 = np.asarray(st3["Flux"], float)[:100]
-            cost_base, _   = cost_function({"Flux": flux100})
+            flux_K = np.asarray(st3["Flux"], float)[:K_base]
+            cost_base, _   = cost_function({"Flux": flux_K})
 
             
 
