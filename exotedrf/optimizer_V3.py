@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 from jwst import datamodels
 import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 
 from exotedrf import utils
 from exotedrf.utils import parse_config, unpack_input_dir, fancyprint
@@ -62,9 +63,9 @@ def plot_cost(name_str, table_height=0.5):
 
     for idx, row in df.iterrows():
         if prev_row is None:
-            value = int(row["time_window"]) if float(row["time_window"]).is_integer() else row["time_window"]
-            label = f"time_window={value}"
-            changed_param = "time_window"
+            value = int(row["nirspec_mask_width"]) if float(row["nirspec_mask_width"]).is_integer() else row["nirspec_mask_width"]
+            label = f"nirspec_mask_width={value}"
+            changed_param = "nirspec_mask_width"
         else:
             diffs = [col for col in param_cols if row[col] != prev_row[col]]
             if len(diffs) == 1:
@@ -214,7 +215,7 @@ def diagnostic_plot(st3, name_str):
 
     # 1) simple normalized white curve
     plt.figure()
-    plt.plot(norm_white, marker='o')
+    plt.plot(norm_white, marker='.')
     plt.xlabel("Integration Number")
     plt.ylabel("Normalized White Flux")
     plt.title("Normalized White-light Curve")
@@ -297,8 +298,8 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            "nirspec_mask_width":        list(range(10,31,2)),
-            "time_rejection_threshold":  list(range(5,16,1)),
+            "nirspec_mask_width":        list(range(10,21,2)),
+            "time_rejection_threshold":  list(range(5,11,1)),
             "time_window":               list(range(5,12,2)),
         })
     else:  # MIRI
@@ -350,7 +351,7 @@ def main():
         for trial in param_ranges[key]:
             fancyprint(f"Step {count}/{total_steps}: {key}={trial}")
             trial_params = {**current, key: trial}
-            baseline_ints = [100]
+            baseline_ints = [150]
 
             t0 = time.perf_counter()
 
@@ -385,7 +386,7 @@ def main():
                     baseline_ints=baseline_ints,
                     flag_up_ramp=False,
                     save_results=True,
-                    force_redo=False,
+                    force_redo=True,
                     skip_steps=[],
                     **s1_args
                 )
@@ -417,6 +418,9 @@ def main():
             
             else:
                 if key in ('nirspec_mask_width'):
+
+                    print("\n\n\n ########################### \n 1. if key in ('nirspec_mask_width') \n")
+
                     filenames_int1 = [outdir_s1+'jw01366003001_04101_00001-seg001_nrs1_darkcurrentstep.fits',
                                 outdir_s1+'jw01366003001_04101_00001-seg002_nrs1_darkcurrentstep.fits',
                                 outdir_s1+'jw01366003001_04101_00001-seg003_nrs1_darkcurrentstep.fits']
@@ -458,6 +462,9 @@ def main():
 
                     
                 elif key in ('time_rejection_threshold', 'time_window'):
+
+                    print("\n\n\n ########################### \n 2. elif key in ('time_rejection_threshold', 'time_window'): \n")
+
                     filenames_int2 = [outdir_s1+'jw01366003001_04101_00001-seg001_nrs1_linearitystep.fits',
                                 outdir_s1+'jw01366003001_04101_00001-seg002_nrs1_linearitystep.fits',
                                 outdir_s1+'jw01366003001_04101_00001-seg003_nrs1_linearitystep.fits']
@@ -496,6 +503,9 @@ def main():
                         **cfg.get("stage3_kwargs",{})
                     )                             
                 elif key in ('space_thresh', 'time_thresh', 'box_size', 'window_size'):
+
+                    print("\n\n\n ########################### \n 3. elif key in ('space_thresh', 'time_thresh', 'box_size', 'window_size'): \n")
+
                     filenames_int3 = [outdir_s1+'jw01366003001_04101_00001-seg001_nrs1_gainscalestep.fits',
                                 outdir_s1+'jw01366003001_04101_00001-seg002_nrs1_gainscalestep.fits',
                                 outdir_s1+'jw01366003001_04101_00001-seg003_nrs1_gainscalestep.fits']
@@ -535,6 +545,9 @@ def main():
                         **cfg.get("stage3_kwargs",{})
                     )
                 elif key in ('extract_width'):
+
+                    print("\n\n\n ########################### \n 4. elif key in ('extract_width'): \n")
+
                     filenames_int4 = [outdir_s2+'jw01366003001_04101_00001-seg001_nrs1_badpixstep.fits',
                                 outdir_s2+'jw01366003001_04101_00001-seg002_nrs1_badpixstep.fits',
                                 outdir_s2+'jw01366003001_04101_00001-seg003_nrs1_badpixstep.fits']           
@@ -562,14 +575,12 @@ def main():
                         **cfg.get("stage3_kwargs",{})
                     )
 
-            print("\n\n\n ********################************22 \n\n\n")
-
 
             cost, scatter        = cost_function(st3)
             flux100 = np.asarray(st3["Flux"], float)[:100]
             cost_base, _   = cost_function({"Flux": flux100})
 
-            print("\n\n\n ********################************33 \n\n\n")
+            
 
             dt = time.perf_counter() - t0
             fancyprint(f"→ cost = {cost:.12f} in {dt:.1f}s")
