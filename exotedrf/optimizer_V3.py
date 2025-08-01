@@ -547,7 +547,7 @@ def main():
                     baseline_ints=baseline_ints,
                     flag_up_ramp=False,
                     save_results=True,
-                    force_redo=True,
+                    force_redo=False,
                     skip_steps=[],
                     **s1_args
                 )
@@ -717,7 +717,7 @@ def main():
 
             line = " ".join(f"{x:.10g}" for x in scatter)  
             logs.write(line + "\n")
-            logc.write(covariance + "\n")
+            logc.write(f"{covariance:.10f}\n")
 
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
