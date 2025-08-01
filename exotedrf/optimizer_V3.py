@@ -22,7 +22,10 @@ from exotedrf.stage2 import run_stage2
 from exotedrf.stage3 import run_stage3
 
 #########################################
-K_base = int(150)
+
+baseline_ints = [150, -100]
+cost_range = baseline_ints # Acceptable: baseline_ints, 'all', (lo,hi), [N], or [N1,N2]
+
 name_str = 'P2P_spec_whole_V3'
 uncal_indir = 'Optimize_WASP39b/DMS_uncal/'  # Where our uncalibrated files are found.
 outdir_s1 = 'pipeline_outputs_directory/Stage1/'
@@ -37,21 +40,21 @@ utils.verify_path('pipeline_outputs_directory/Stage3')
 utils.verify_path('pipeline_outputs_directory/Stage4')
 
 
-filenames_1 = [uncal_indir+'jw01366003001_04101_00001-seg001_nrs1_uncal.fits',
-            uncal_indir+'jw01366003001_04101_00001-seg002_nrs1_uncal.fits',
-            uncal_indir+'jw01366003001_04101_00001-seg003_nrs1_uncal.fits']
+filenames = [uncal_indir+'jw01366003001_04101_00001-seg001_nrs2_uncal.fits',
+            uncal_indir+'jw01366003001_04101_00001-seg002_nrs2_uncal.fits',
+            uncal_indir+'jw01366003001_04101_00001-seg003_nrs2_uncal.fits']
 
 
 # ----------------------------------------
 # plot cost
 # ----------------------------------------
 
-def plot_cost(name_str, table_height=0.5):
+def plot_cost(name_str, table_height=0.4):
     # Load data
     df = pd.read_csv(f"pipeline_outputs_directory/Files/Cost_{name_str}.txt", delimiter="\t")
 
     # Drop rows with non-numeric cost values
-    df = df[pd.to_numeric(df["cost_whole_set"], errors="coerce").notna()].reset_index(drop=True)
+    df = df[pd.to_numeric(df["cost"], errors="coerce").notna()].reset_index(drop=True)
 
     # Get parameter columns (excluding duration_s and cost columns)
     param_cols = df.columns[:-3]
@@ -96,17 +99,15 @@ def plot_cost(name_str, table_height=0.5):
     for i in range(len(sweep_boundaries) - 1):
         start = sweep_boundaries[i]
         end = sweep_boundaries[i+1]
-        min_idx = df.iloc[start:end]["cost_whole_set"].idxmin()
+        min_idx = df.iloc[start:end]["cost"].idxmin()
         colors[min_idx] = 'green'
 
     # Best overall row
-    best_row = df.loc[df["cost_whole_set"].idxmin(), param_cols.tolist() + ["cost_whole_set"]].copy()
-
+    best_row = df.loc[df["cost"].idxmin(), param_cols.tolist() + ["cost"]].copy()
     for col in best_row.index:
         val = best_row[col]
         if isinstance(val, (int, float)) and float(val).is_integer():
             best_row[col] = int(val)
-
     best_df = pd.DataFrame([best_row]).reset_index(drop=True)
 
     # Create layout with two vertical rows
@@ -116,38 +117,83 @@ def plot_cost(name_str, table_height=0.5):
     ax_table = fig.add_subplot(gs[1])
 
     # Main plot
-    ax_plot.scatter(df["changed_label"], df["cost_whole_set"], color=colors)
+    ax_plot.scatter(df["changed_label"], df["cost"], color=colors)
     for x in sweep_lines:
         ax_plot.axvline(x=x - 0.5, color='gray', linestyle='--', linewidth=1)
 
+    # simplify tick labels to just the value, not rotated
+    values = [lbl.split('=')[1] for lbl in df["changed_label"]]
     ax_plot.set_xticks(range(len(df)))
-    ax_plot.set_xticklabels(df["changed_label"], rotation=90, fontsize=8)
-    ax_plot.set_ylabel("Cost")
-    ax_plot.set_xlabel("Changed Parameter")
+    ax_plot.set_xticklabels(values, rotation=0, fontsize=8)
+
+    # drop parameter names down by alternating offsets to avoid overlap
+    ymin, ymax = ax_plot.get_ylim()
+    base_y = ymin - 0.08 * (ymax - ymin)
+    alt_y  = ymin - 0.15 * (ymax - ymin)
+    for i, (start, end) in enumerate(zip(sweep_boundaries[:-1], sweep_boundaries[1:])):
+        param_name = df.loc[start, "changed_label"].split("=")[0]
+        center = (start + end - 1) / 2
+        y_pos = base_y if i % 2 == 0 else alt_y
+        ax_plot.text(center, y_pos, param_name, ha="center", va="top", fontsize=10)
+
+    # expand bottom margin so parameter names stay visible
+    fig.subplots_adjust(bottom=0.30)
+
+    ax_plot.set_ylabel("Cost, (ppm)")
     ax_plot.set_title(f"Cost by Single Parameter Sweep: {name_str}")
 
-    # Hide table axis
+    # … after you’ve done all of the plotting …
+    # prepare the table
     ax_table.axis("off")
+    ax_table.text(0.5, 0.65, "Best Parameters", ha="center", va="bottom", fontsize=12)
 
-    # Render the table
     table = ax_table.table(
         cellText=best_df.values,
         colLabels=best_df.columns,
         cellLoc='center',
         loc='center'
     )
+    table.scale(1.0, 1.8)
 
-    table.scale(1, 1)  # slightly expand cells
+    # turn off auto‐sizing globally
+    table.auto_set_font_size(False)
 
-    # Set consistent, visible font size
-    desired_fontsize = 12
-    for key, cell in table.get_celld().items():
-        cell.set_fontsize(desired_fontsize)
+    # let the header row still auto‐size
+    for (row, col), cell in table.get_celld().items():
+        if row == 0:
+            cell.set_fontsize(7)
+        else:
+            cell.set_fontsize(10)
 
-    plt.subplots_adjust(hspace=0.3)  # add vertical space between plot and table
-    plt.savefig(f"pipeline_outputs_directory/Files/plot_cost_{name_str}.png", dpi=300)
-    plt.show()
 
+
+# ----------------------------------------
+# create filenames
+# ----------------------------------------
+
+def make_step_filenames(input_files, output_dir, step_tag):
+    """
+    Given a list of JWST‐style filenames, replace everything after the
+    last '_' (the “step” part) with your new step_tag, and stick them
+    into output_dir.
+    """
+    out = []
+    for f in input_files:
+        base = os.path.basename(f)
+        # chop off the last “_something.fits” bit
+        base_root = base[: base.rfind("_") ]
+        new_name = f"{base_root}_{step_tag}.fits"
+        out.append(os.path.join(output_dir, new_name))
+    return out
+
+# now for stage1’s dark‐current outputs:
+filenames_int1 = make_step_filenames(filenames, outdir_s1, "darkcurrentstep")
+# for stage1’s linearity outputs:
+filenames_int2 = make_step_filenames(filenames, outdir_s1, "linearitystep")
+# stage‐1 → gainscalestep  (used when skipping later stage1 steps)
+filenames_int3 = make_step_filenames(filenames, outdir_s1, "gainscalestep")
+# for stage2’s badpixstep outputs you’d do:
+filenames_int4 = make_step_filenames(filenames, outdir_s2, "badpixstep")
 
 
 
@@ -155,16 +201,15 @@ def plot_cost(name_str, table_height=0.5):
 # ----------------------------------------
 # cost (P2P-based)
 # ----------------------------------------
-
-def cost_function(st3):
-    w1= 0.0
-    w2 = 1.0
+"""
+def cost_function(st3, spec_range=baseline_ints):
+    w1, w2 = 0.0, 1.0
     flux = np.asarray(st3['Flux'], float)
 
-    # white-light
+    # white‐light
     white = np.nansum(flux, axis=1)
     white = white[~np.isnan(white)]
-    norm_white = white/np.median(white)
+    norm_white = white / np.median(white)
     d2_white = 0.5*(norm_white[:-2] + norm_white[2:]) - norm_white[1:-1]
     ptp2_white = np.nanmedian(np.abs(d2_white))
 
@@ -173,9 +218,91 @@ def cost_function(st3):
     norm_spec = flux / wave_meds
     d2_spec = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
     ptp2_spec_wave = np.nanmedian(np.abs(d2_spec), axis=0)
-    ptp2_spec = np.nanmedian(ptp2_spec_wave)
+
+    if spec_range is None:
+        ptp2_spec = np.nanmedian(ptp2_spec_wave)
+    else:
+        lo, hi = spec_range
+        ptp2_spec = np.nanmedian(ptp2_spec_wave[lo:hi])
 
     return w1*ptp2_white + w2*ptp2_spec, ptp2_spec_wave
+"""
+
+def cost_function(st3, cost_range=baseline_ints):
+    """
+    Compute a combined white-light + spectral “spikiness” metric.
+
+    Parameters
+    ----------
+    st3 : dict-like
+        Must contain 'Flux' → 2D array of shape (n_int, n_wave).
+    cost_range : one of
+        • list of one int [N]: use ptp2 over ptp2_spec_wave[0:N]
+        • list of two ints [N1, N2]: use ptp2 over first N1 *and* last N2 pixels. N1 positive, N2 negative
+        • tuple of two ints (lo, hi): use ptp2_spec_wave[lo:hi]
+        • 'all' : use entire ptp2_spec_wave
+        • None : same as list of ints in baseline_ints
+
+    Returns
+    -------
+    cost : float
+        w1*ptp2_white + w2*ptp2_spec
+    ptp2_spec_wave : 1D np.ndarray
+        The per-wavelength ptp2 values.
+    """
+    import numpy as np
+
+    w1, w2 = 0.0, 1.0
+    flux = np.asarray(st3['Flux'], float)
+
+    # --- white-light term ---
+    white = np.nansum(flux, axis=1)
+    white = white[~np.isnan(white)]
+    norm_white = white / np.median(white)
+    d2_white = 0.5*(norm_white[:-2] + norm_white[2:]) - norm_white[1:-1]
+    ptp2_white = np.nanmedian(np.abs(d2_white))
+
+    # --- spectral term (ptp2 per wavelength) ---
+    wave_meds = np.nanmedian(flux, axis=0, keepdims=True)
+    norm_spec = flux / wave_meds
+    d2_spec = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
+    ptp2_spec_wave = np.nanmedian(np.abs(d2_spec), axis=0)
+
+   
+    cr = cost_range
+    # default to baseline_ints if None
+    if cr is None:
+        cr = baseline_ints
+
+    if isinstance(cr, str):
+        if cr == 'all':
+            ptp2_spec = np.nanmedian(ptp2_spec_wave)
+        else:
+            raise ValueError(f"Invalid cost_range={cr!r}. Acceptable: baseline_ints, 'all', (lo,hi), [N], or [N1,N2].")
+
+    elif isinstance(cr, tuple) and len(cr) == 2:
+        lo, hi = cr
+        ptp2_spec = np.nanmedian(ptp2_spec_wave[lo:hi])
+
+    elif isinstance(cr, list):
+        if len(cr) == 1:
+            N = cr[0]
+            ptp2_spec = np.nanmedian(ptp2_spec_wave[:N])
+        elif len(cr) == 2:
+            N1, N2 = cr
+            first_med = np.nanmedian(ptp2_spec_wave[:N1])
+            last_med  = np.nanmedian(ptp2_spec_wave[N2:])
+            ptp2_spec = 0.5*(first_med + last_med)
+        else:
+            raise ValueError(f"Invalid cost_range={cr!r}. Acceptable: baseline_ints, 'all', (lo,hi), [N], or [N1,N2].")
+
+    else:
+        raise ValueError(f"Invalid cost_range={cr!r}. Acceptable: baseline_ints, 'all', (lo,hi), [N], or [N1,N2].")
+
+    cost = w1 * ptp2_white + w2 * ptp2_spec
+    return cost, ptp2_spec_wave
+
+
 
 # ----------------------------------------
 # diagnostic_plot
@@ -199,7 +326,6 @@ def diagnostic_plot(st3, name_str):
     ------
     pipeline_outputs_directory/Files/
         norm_white_{name_str}.png
-        norm_white_err_{name_str}.png
         flux_img_{name_str}.png
     """
     # ensure output dir exists
@@ -224,24 +350,10 @@ def diagnostic_plot(st3, name_str):
     plt.savefig(f"{outdir}/norm_white_{name_str}.png", dpi=300)
     plt.close()
 
-    # 2) white curve with per-integration scatter errorbars
-    plt.figure()
-    x = np.arange(len(norm_white))
-    # for errorbars use the std-across-spectral-pixels for each integration
-    normed_spec = flux / np.nanmedian(flux, axis=0, keepdims=True)
-    yerr = np.nanstd(normed_spec, axis=1)
-    plt.errorbar(x, norm_white, yerr=yerr, fmt="o-", capsize=3, elinewidth=1)
-    plt.xlabel("Integration Number")
-    plt.ylabel("Normalized White Flux")
-    plt.title("Normalized White-light Curve w/ Errorbar")
-    plt.grid(True)
-    plt.savefig(f"{outdir}/norm_white_err_{name_str}.png", dpi=300)
-    plt.close()
-
     # 3) normalized flux image (integrations vs. spectral pixels)
     plt.figure()
     img = flux / np.nanmedian(flux, axis=0, keepdims=True)
-    plt.imshow(img, aspect='auto', vmin=0.99, vmax=1.01, origin='lower')
+    plt.imshow(img, aspect='auto', vmin=0.98, vmax=1.02, origin='lower')
     plt.xlabel("Spectral Pixel")
     plt.ylabel("Integration Number")
     plt.title("Normalized Flux Image")
@@ -338,22 +450,24 @@ def main():
     # open global log
     logf = open(f"pipeline_outputs_directory/Files/Cost_{name_str}.txt","w")
     logs  = open(f"pipeline_outputs_directory/Files/Scatter_{name_str}.txt", "w")
-    logf.write("\t".join(param_order)+"\tduration_s\tcost_whole_set\tcost_baseline\n")
+    logf.write("\t".join(param_order)+"\tduration_s\tcost\n")
 
     count = 1
+    best_cost = None
     # coordinate descent
     for key in param_order:
         fancyprint(
             f"→ Optimizing {key} "
             f"(fixed-other={{{', '.join(f'{k}:{current[k]}' for k in current if k!=key)}}})"
         )
-        best_cost, best_val = None, current[key]
+
+        best_val = current[key]
 
         for trial in param_ranges[key]:
             fancyprint(f"Step {count}/{total_steps}: {key}={trial}")
             trial_params = {**current, key: trial}
 
-            baseline_ints = [K_base]
+            
 
             t0 = time.perf_counter()
 
@@ -383,7 +497,7 @@ def main():
             if best_cost == None:
                 # Stage 1
                 st1 = run_stage1(
-                    filenames_1,
+                    filenames,
                     mode=cfg["observing_mode"],
                     baseline_ints=baseline_ints,
                     flag_up_ramp=False,
@@ -421,13 +535,6 @@ def main():
             else:
                 if key in ('nirspec_mask_width'):
 
-                    print("\n\n\n ########################### \n 1. if key in ('nirspec_mask_width') \n")
-
-                    filenames_int1 = [outdir_s1+'jw01366003001_04101_00001-seg001_nrs1_darkcurrentstep.fits',
-                                outdir_s1+'jw01366003001_04101_00001-seg002_nrs1_darkcurrentstep.fits',
-                                outdir_s1+'jw01366003001_04101_00001-seg003_nrs1_darkcurrentstep.fits']
-
-
                     st1 = run_stage1(
                         filenames_int1,
                         mode=cfg["observing_mode"],
@@ -464,12 +571,6 @@ def main():
 
                     
                 elif key in ('time_rejection_threshold', 'time_window'):
-
-                    print("\n\n\n ########################### \n 2. elif key in ('time_rejection_threshold', 'time_window'): \n")
-
-                    filenames_int2 = [outdir_s1+'jw01366003001_04101_00001-seg001_nrs1_linearitystep.fits',
-                                outdir_s1+'jw01366003001_04101_00001-seg002_nrs1_linearitystep.fits',
-                                outdir_s1+'jw01366003001_04101_00001-seg003_nrs1_linearitystep.fits']
                                         
                     st1 = run_stage1(
                         filenames_int2,
@@ -506,24 +607,6 @@ def main():
                     )                             
                 elif key in ('space_thresh', 'time_thresh', 'box_size', 'window_size'):
 
-                    print("\n\n\n ########################### \n 3. elif key in ('space_thresh', 'time_thresh', 'box_size', 'window_size'): \n")
-
-                    filenames_int3 = [outdir_s1+'jw01366003001_04101_00001-seg001_nrs1_gainscalestep.fits',
-                                outdir_s1+'jw01366003001_04101_00001-seg002_nrs1_gainscalestep.fits',
-                                outdir_s1+'jw01366003001_04101_00001-seg003_nrs1_gainscalestep.fits']
-                                                            
-                    
-                    #st1 = run_stage1(
-                    #    filenames_int3,
-                    #    mode=cfg["observing_mode"],
-                    #    baseline_ints=baseline_ints,
-                    #    flag_up_ramp=False,
-                    #    save_results=True,
-                    #    force_redo=True,
-                    #    skip_steps=['DQInitStep','SaturationStep','DarkCurrentStep','OneOverFStep','LinearityStep','JumpStep','RampFitStep','GainScaleStep'],
-                    #    **s1_args
-                    #)
-
                     st2, centroids = run_stage2(
                         filenames_int3,
                         mode=cfg["observing_mode"],
@@ -547,13 +630,7 @@ def main():
                         **cfg.get("stage3_kwargs",{})
                     )
                 elif key in ('extract_width'):
-
-                    print("\n\n\n ########################### \n 4. elif key in ('extract_width'): \n")
-
-                    filenames_int4 = [outdir_s2+'jw01366003001_04101_00001-seg001_nrs1_badpixstep.fits',
-                                outdir_s2+'jw01366003001_04101_00001-seg002_nrs1_badpixstep.fits',
-                                outdir_s2+'jw01366003001_04101_00001-seg003_nrs1_badpixstep.fits']           
-
+      
                     st2, centroids = run_stage2(
                         filenames_int4,
                         mode=cfg["observing_mode"],
@@ -577,12 +654,12 @@ def main():
                         **cfg.get("stage3_kwargs",{})
                     )
 
-
-            cost, scatter        = cost_function(st3)
-            flux_K = np.asarray(st3["Flux"], float)[:K_base]
-            cost_base, _   = cost_function({"Flux": flux_K})
-
             
+
+            cost, scatter = cost_function(st3, cost_range=baseline_ints)
+            
+            
+
 
             dt = time.perf_counter() - t0
             fancyprint(f"→ cost = {cost:.12f} in {dt:.1f}s")
@@ -590,7 +667,7 @@ def main():
             # log it
             logf.write(
                 "\t".join(str(trial_params[k]) for k in param_order)
-                + f"\t{dt:.1f}\t{cost:.12f}\t{cost_base:.12f}\n"
+                + f"\t{dt:.1f}\t{cost:.12f}\n"
             )
 
             line = " ".join(f"{x:.10g}" for x in scatter)  
