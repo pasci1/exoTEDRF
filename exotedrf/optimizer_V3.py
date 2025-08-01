@@ -14,6 +14,7 @@ import pandas as pd
 from jwst import datamodels
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
+from astropy.io import fits
 
 from exotedrf import utils
 from exotedrf.utils import parse_config, unpack_input_dir, fancyprint
@@ -361,6 +362,49 @@ def diagnostic_plot(st3, name_str):
     plt.savefig(f"{outdir}/flux_img_{name_str}.png", dpi=300)
     plt.close()
 
+# ----------------------------------------
+# covariance
+# ----------------------------------------
+
+def compute_cov_metric(random_seed=42):
+    """
+    Compute covariance metric for the spectrum file located in pipeline_outputs_directory/Stage3.
+
+    Parameters:
+    random_seed (int or None): Seed for reproducible noise generation (default: 42).
+
+    Returns:
+    float: Covariance metric (percent excess correlation).
+    """
+    # Define Stage3 output directory
+    stage3_dir = os.path.join("pipeline_outputs_directory", "Stage3")
+    # Find the FITS file ending with _box_spectra_fullres.fits
+    pattern = os.path.join(stage3_dir, "*_box_spectra_fullres.fits")
+    matches = glob.glob(pattern)
+    if not matches:
+        raise FileNotFoundError(f"No spectrum file matching *_box_spectra_fullres.fits found in {stage3_dir}")
+    # Use the first match
+    final_output_spectrum_file = matches[0]
+
+    # Load & normalize
+    spec = fits.getdata(final_output_spectrum_file, 3)
+    spec /= np.nanmedian(spec[:100], axis=0)
+    cov_matrix2 = np.corrcoef(spec[:100].T)
+
+    # Prepare reproducible RNG
+    rng = np.random.default_rng(random_seed)
+
+    # Simulate noise with same per-column deviation
+    dev = np.nanstd(spec[:100], axis=0)
+    ss = np.empty_like(spec)
+    for i in range(len(dev)):
+        ss[:, i] = rng.normal(0, dev[i], spec.shape[0])
+    cov_matrix = np.corrcoef(ss[:100].T)
+
+    # Compute percent excess correlation
+    cov_metric = (np.nanmean(np.abs(cov_matrix2)) / np.nanmean(np.abs(cov_matrix))) * 100 - 100
+    return cov_metric
+
 
 
 # ----------------------------------------
@@ -411,7 +455,7 @@ def main():
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            "nirspec_mask_width":        list(range(10,21,2)),
+            "nirspec_mask_width":        list(range(10,25,2)),
             "time_rejection_threshold":  list(range(5,11,1)),
             "time_window":               list(range(5,12,2)),
         })
@@ -449,6 +493,7 @@ def main():
 
     # open global log
     logf = open(f"pipeline_outputs_directory/Files/Cost_{name_str}.txt","w")
+    logc = open(f"pipeline_outputs_directory/Files/cov_{name_str}.txt","w")
     logs  = open(f"pipeline_outputs_directory/Files/Scatter_{name_str}.txt", "w")
     logf.write("\t".join(param_order)+"\tduration_s\tcost\n")
 
@@ -658,7 +703,7 @@ def main():
 
             cost, scatter = cost_function(st3, cost_range=baseline_ints)
             
-            
+            covariance = compute_cov_metric(42)
 
 
             dt = time.perf_counter() - t0
@@ -672,6 +717,7 @@ def main():
 
             line = " ".join(f"{x:.10g}" for x in scatter)  
             logs.write(line + "\n")
+            logc.write(covariance + "\n")
 
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
@@ -697,6 +743,7 @@ def main():
     fancyprint(f"TOTAL runtime: {h}h {m:02d}min {s:04.1f}s")
     logf.close()
     logs.close()
+    logc.close()
 
     fancyprint("=== FINAL OPTIMUM ===")
     fancyprint(current)
