@@ -435,7 +435,7 @@ def main():
         mode=cfg["observing_mode"],
         filetag=cfg["input_filetag"],
         filter_detector=cfg["filter_detector"],
-    )
+    ) 
     if not input_files:
         fancyprint(f"[WARN] No files in {cfg['input_dir']}, globbing *.fits")
         input_files = sorted(glob.glob(os.path.join(cfg["input_dir"], "*.fits")))
