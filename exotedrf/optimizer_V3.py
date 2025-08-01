@@ -263,7 +263,7 @@ def cost_function(st3, cost_range=baseline_ints):
     ptp2_white = np.nanmedian(np.abs(d2_white))
 
     # --- spectral term (ptp2 per wavelength) ---
-    wave_meds = np.nanmedian(flux, axis=0, keepdims=True)
+    wave_meds = np.nanmedian(flux[:100], axis=0, keepdims=True)
     norm_spec = flux / wave_meds
     d2_spec = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
     ptp2_spec_wave = np.nanmedian(np.abs(d2_spec), axis=0)
