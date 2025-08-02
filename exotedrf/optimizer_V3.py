@@ -41,9 +41,9 @@ utils.verify_path('pipeline_outputs_directory/Stage3')
 utils.verify_path('pipeline_outputs_directory/Stage4')
 
 
-filenames = [uncal_indir+'jw01366003001_04101_00001-seg001_nrs2_uncal.fits',
-            uncal_indir+'jw01366003001_04101_00001-seg002_nrs2_uncal.fits',
-            uncal_indir+'jw01366003001_04101_00001-seg003_nrs2_uncal.fits']
+filenames = [uncal_indir+'jw01366003001_04101_00001-seg001_nrs1_uncal.fits',
+            uncal_indir+'jw01366003001_04101_00001-seg002_nrs1_uncal.fits',
+            uncal_indir+'jw01366003001_04101_00001-seg003_nrs1_uncal.fits']
 
 
 # ----------------------------------------
@@ -547,7 +547,7 @@ def main():
                     baseline_ints=baseline_ints,
                     flag_up_ramp=False,
                     save_results=True,
-                    force_redo=False,
+                    force_redo=True,
                     skip_steps=[],
                     **s1_args
                 )
