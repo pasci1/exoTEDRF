@@ -24,7 +24,7 @@ from exotedrf.stage3 import run_stage3
 
 #########################################
 
-baseline_ints = [150, -100]
+baseline_ints = [150]
 cost_range = baseline_ints # Acceptable: baseline_ints, 'all', (lo,hi), [N], or [N1,N2]
 
 name_str = 'P2P_spec_whole_V3'
@@ -143,7 +143,6 @@ def plot_cost(name_str, table_height=0.4):
     ax_plot.set_ylabel("Cost, (ppm)")
     ax_plot.set_title(f"Cost by Single Parameter Sweep: {name_str}")
 
-    # … after you’ve done all of the plotting …
     # prepare the table
     ax_table.axis("off")
     ax_table.text(0.5, 0.65, "Best Parameters", ha="center", va="bottom", fontsize=12)
@@ -165,6 +164,8 @@ def plot_cost(name_str, table_height=0.4):
             cell.set_fontsize(7)
         else:
             cell.set_fontsize(10)
+    fig.savefig(f"pipeline_outputs_directory/Files/Cost_{name_str}.png", dpi=300, bbox_inches='tight')
+
 
 
 
@@ -457,7 +458,7 @@ def main():
         param_ranges.update({
             "nirspec_mask_width":        list(range(10,25,2)),
             "time_rejection_threshold":  list(range(5,11,1)),
-            "time_window":               list(range(5,12,2)),
+            "time_window":               list(range(3,12,2)),
         })
     else:  # MIRI
         param_ranges.update({
@@ -469,7 +470,7 @@ def main():
         "space_thresh":  list(range(5,16,1)),
         "time_thresh":   list(range(5,16,1)),
         "box_size":      list(range(2,9,1)),
-        "window_size":   list(range(3,10,2)),
+        "window_size":   list(range(3,12,2)),
         "extract_width": list(range(3,11,1)),
     })
 
