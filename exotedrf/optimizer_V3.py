@@ -204,20 +204,22 @@ filenames_int4 = make_step_filenames(filenames, outdir_s2, "badpixstep")
 # cost (P2P-based)
 # ----------------------------------------
 
-def cost_function(st3, cost_range=baseline_ints):
+def cost_function(st3, baseline_ints, wave_range=None, tol=0.001):
     """
-    Compute a combined white-light + spectral “spikiness” metric.
+    Compute a combined white-light + spectral metric.
 
     Parameters
     ----------
     st3 : dict-like
-        Must contain 'Flux' → 2D array of shape (n_int, n_wave).
-    cost_range : one of
-        • list of one int [N]: use ptp2 over ptp2_spec_wave[0:N]
-        • list of two ints [N1, N2]: use ptp2 over first N1 *and* last N2 pixels. N1 positive, N2 negative
-        • tuple of two ints (lo, hi): use ptp2_spec_wave[lo:hi]
-        • 'all' : use entire ptp2_spec_wave
-        • None : same as list of ints in baseline_ints
+        Must contain 'Flux' → 2D array of shape (n_int, n_wave)
+        and 'Wave' → 1D array of length n_wave
+    baseline_ints : list of 1 or 2 ints
+        Which integrations define your baseline(s)
+    wave_range : None or [min,max] or (min,max)
+        If None: use all wavelengths.
+        If list/tuple: pick only wavelengths within ±tol of the ends.
+    tol : float
+        Maximum allowed distance when matching wave_range endpoints.
 
     Returns
     -------
@@ -227,56 +229,81 @@ def cost_function(st3, cost_range=baseline_ints):
         The per-wavelength ptp2 values.
     """
 
-
+    # unpack & weights
     w1, w2 = 0.0, 1.0
     flux = np.asarray(st3['Flux'], float)
+    wave = np.asarray(st3['Wave'], float)
 
     # --- white-light term ---
-    white = np.nansum(flux, axis=1)
-    white = white[~np.isnan(white)]
+    white      = np.nansum(flux, axis=1)
+    white      = white[~np.isnan(white)]
     norm_white = white / np.median(white)
-    d2_white = 0.5*(norm_white[:-2] + norm_white[2:]) - norm_white[1:-1]
+    d2_white   = 0.5*(norm_white[:-2] + norm_white[2:]) - norm_white[1:-1]
     ptp2_white = np.nanmedian(np.abs(d2_white))
 
-    # --- spectral term (ptp2 per wavelength) ---
-    wave_meds = np.nanmedian(flux, axis=0, keepdims=True)
-    norm_spec = flux / wave_meds
-    d2_spec = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
-    ptp2_spec_wave = np.nanmedian(np.abs(d2_spec), axis=0)
+    # --- spectral term (per-wavelength ptp2) ---
+    wave_meds     = np.nanmedian(flux, axis=0, keepdims=True)
+    norm_spec     = flux / wave_meds
+    d2_spec       = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
 
-    print('\n\n\n#############\n flux = ', flux)
-    cr = cost_range
-    # default to baseline_ints if None
-    if cr is None:
-        cr = baseline_ints
+    # select baseline integrations
+    if len(baseline_ints) == 1:
+        N = int(baseline_ints[0])
+        ptp2_spec_wave = np.nanmedian(np.abs(d2_spec[:N]), axis=0)
 
-    if isinstance(cr, str):
-        if cr == 'all':
-            ptp2_spec = np.nanmedian(ptp2_spec_wave)
-            print(ptp2_spec)
-        else:
-            raise ValueError(f"Invalid cost_range={cr!r}. Acceptable: baseline_ints, 'all', (lo,hi), [N], or [N1,N2].")
-
-    elif isinstance(cr, tuple) and len(cr) == 2:
-        lo, hi = cr
-        ptp2_spec = np.nanmedian(ptp2_spec_wave[lo:hi])
-
-    elif isinstance(cr, list):
-        if len(cr) == 1:
-            N = cr[0]
-            ptp2_spec = np.nanmedian(ptp2_spec_wave[:N])
-        elif len(cr) == 2:
-            N1, N2 = cr
-            first_med = np.nanmedian(ptp2_spec_wave[:N1])
-            last_med  = np.nanmedian(ptp2_spec_wave[N2:])
-            ptp2_spec = 0.5*(first_med + last_med)
-        else:
-            raise ValueError(f"Invalid cost_range={cr!r}. Acceptable: baseline_ints, 'all', (lo,hi), [N], or [N1,N2].")
+    elif len(baseline_ints) == 2:
+        Nlow, Nhigh = map(int, baseline_ints)
+        low_term  = np.nanmedian(np.abs(d2_spec[:Nlow]), axis=0)
+        high_term = np.nanmedian(np.abs(d2_spec[Nhigh:]), axis=0)
+        ptp2_spec_wave = 0.5 * (low_term + high_term)
 
     else:
-        raise ValueError(f"Invalid cost_range={cr!r}. Acceptable: baseline_ints, 'all', (lo,hi), [N], or [N1,N2].")
+        raise ValueError(f"baseline_ints must be length 1 or 2, got {len(baseline_ints)}")
 
+        # handle wave_range
+    if wave_range is None:
+        ptp2_spec = np.nanmedian(ptp2_spec_wave)
+
+    elif isinstance(wave_range, (list, tuple)) and len(wave_range) == 2:
+        lo, hi = wave_range
+
+        # build a mask of finite wavelengths
+        finite = np.isfinite(wave)
+        if not finite.any():
+            raise ValueError("All entries in wave are NaN!")
+
+        # compute distances, forcing NaN entries to +inf
+        dist_lo = np.abs(wave - lo)
+        dist_lo[~finite] = np.inf
+        dist_hi = np.abs(wave - hi)
+        dist_hi[~finite] = np.inf
+
+        idx_lo = int(np.argmin(dist_lo))
+        idx_hi = int(np.argmin(dist_hi))
+
+        # tolerance check
+        if dist_lo[idx_lo] > tol or dist_hi[idx_hi] > tol:
+            raise ValueError(f"wave_range {wave_range} not found within ±{tol}")
+
+        # ensure idx_lo ≤ idx_hi
+        i0, i1 = sorted((idx_lo, idx_hi))
+
+        # slice and take the median of the subrange
+        sub = ptp2_spec_wave[i0:i1+1]
+        if np.all(np.isnan(sub)):
+            raise ValueError(f"No valid ptp2_spec values in wave range {wave_range}")
+        ptp2_spec = np.nanmedian(sub)
+
+    else:
+        raise ValueError("wave_range must be None or a length-2 list/tuple")
+
+    # final cost
     cost = w1 * ptp2_white + w2 * ptp2_spec
+    print('low', idx_lo, wave[idx_lo])
+    print('high', idx_hi, wave[idx_hi])
+
+
+
     return cost, ptp2_spec_wave
 
 
