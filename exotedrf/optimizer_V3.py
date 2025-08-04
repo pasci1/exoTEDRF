@@ -24,8 +24,8 @@ from exotedrf.stage3 import run_stage3
 
 #########################################
 
-baseline_ints = [150 ]
-cost_range = 'all' # Acceptable: baseline_ints, 'all', (lo,hi), [N], or [N1,N2]
+baseline_ints = [150,-100 ]
+
 
 name_str = 'P2P_spec_whole_V3'
 uncal_indir = 'Optimize_WASP39b/DMS_uncal/'  # Where our uncalibrated files are found.
@@ -204,7 +204,7 @@ filenames_int4 = make_step_filenames(filenames, outdir_s2, "badpixstep")
 # cost (P2P-based)
 # ----------------------------------------
 
-def cost_function(st3, baseline_ints, wave_range=None, tol=0.001):
+def cost_function(st3, baseline_ints=baseline_ints, wave_range=None, tol=0.001):
     """
     Compute a combined white-light + spectral metric.
 
@@ -700,7 +700,7 @@ def main():
 
             
 
-            cost, scatter = cost_function(st3, cost_range=baseline_ints)
+            cost, scatter = cost_function(st3, baseline_ints=baseline_ints, wave_range=(3.2,3.4))
             
             covariance = compute_cov_metric(42)
 
