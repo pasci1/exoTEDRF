@@ -29,9 +29,12 @@ baseline_ints = [150,-100 ]
 
 name_str = 'P2P_spec_whole_V3'
 uncal_indir = 'Optimize_WASP39b/DMS_uncal/'  # Where our uncalibrated files are found.
+outdir = 'pipeline_outputs_directory'
+outdir_f = 'pipeline_outputs_directory/Files'
 outdir_s1 = 'pipeline_outputs_directory/Stage1/'
 outdir_s2 = 'pipeline_outputs_directory/Stage2/'
 outdir_s3 = 'pipeline_outputs_directory/Stage3/'
+outdir_s4 = 'pipeline_outputs_directory/Stage4/'
 
 utils.verify_path('pipeline_outputs_directory')
 utils.verify_path('pipeline_outputs_directory/Files')
@@ -308,7 +311,7 @@ def cost_function(st3, baseline_ints=baseline_ints, wave_range=None, tol=0.001):
 # diagnostic_plot
 # ----------------------------------------
 
-def diagnostic_plot(st3, name_str):
+def diagnostic_plot(st3, name_str, baseline_ints=baseline_ints, outdir=outdir_f):
     """
     Generate three diagnostic plots from the stage-3 flux array:
       1. Normalized white-light curve
@@ -329,16 +332,31 @@ def diagnostic_plot(st3, name_str):
         flux_img_{name_str}.png
     """
     # ensure output dir exists
-    outdir = "pipeline_outputs_directory/Files"
     os.makedirs(outdir, exist_ok=True)
 
     # grab the flux array
     flux = np.asarray(st3['Flux'], dtype=float)
+    wave = np.asarray(st3['Wave'], dtype=float)
 
     # ---  white light curve ---
     white = np.nansum(flux, axis=1)
     white = white[~np.isnan(white)]
-    norm_white = white / np.median(white)
+    norm_white = white / np.median(white[:100])
+
+    if len(baseline_ints) == 1:
+        N = int(baseline_ints[0])
+        norm_white = white / np.median(white[:N])
+
+    elif len(baseline_ints) == 2:
+        Nlow, Nhigh = map(int, baseline_ints)
+        low_term  = np.median(white[:Nlow])
+        high_term = np.median(white[Nhigh:])
+        median_base = 0.5 * (low_term + high_term)
+        norm_white = white / median_base
+
+    else:
+        raise ValueError(f"baseline_ints must be length 1 or 2, got {len(baseline_ints)}")
+    
 
     # 1) simple normalized white curve
     plt.figure()
@@ -350,16 +368,33 @@ def diagnostic_plot(st3, name_str):
     plt.savefig(f"{outdir}/norm_white_{name_str}.png", dpi=300)
     plt.close()
 
-    # 3) normalized flux image (integrations vs. spectral pixels)
+    # 2) normalized flux image (integration vs. wavelength)
     plt.figure()
     img = flux / np.nanmedian(flux, axis=0, keepdims=True)
-    plt.imshow(img, aspect='auto', vmin=0.98, vmax=1.02, origin='lower')
-    plt.xlabel("Spectral Pixel")
-    plt.ylabel("Integration Number")
+    n_int, n_pix = flux.shape
+    
+    # ignore NaNs when finding wavelength bounds
+    finite = np.isfinite(wave)
+    if not finite.any():
+        raise ValueError("No finite wavelengths found!")
+    wmin, wmax = wave[finite].min(), wave[finite].max()
+    
+    # transpose img so rows→wavelength, cols→integration
+    plt.imshow(
+        img.T,              # swap axes
+        vmin=0.98, vmax=1.02,
+        aspect='auto',
+        origin='lower',
+        extent=[0, n_int-1, wmin, wmax]
+    )
+    plt.xlabel("Integration Number")
+    plt.ylabel("Wavelength (µm)")
     plt.title("Normalized Flux Image")
     plt.colorbar(label="Relative Flux")
     plt.savefig(f"{outdir}/flux_img_{name_str}.png", dpi=300)
     plt.close()
+
+
 
 # ----------------------------------------
 # covariance
@@ -403,6 +438,22 @@ def compute_cov_metric(random_seed=42):
     # Compute percent excess correlation
     cov_metric = (np.nanmean(np.abs(cov_matrix2)) / np.nanmean(np.abs(cov_matrix))) * 100 - 100
     return cov_metric
+
+def compute_cov_metric_avg(n_seeds=10, start_seed=0):
+    metrics = []
+    for i in range(n_seeds):
+        seed = start_seed + i
+        cov = compute_cov_metric(random_seed=seed)
+        metrics.append(cov)
+    avg_cov = np.mean(metrics)
+    return avg_cov, metrics
+
+# ----------------------------------------
+# photon noise
+# ----------------------------------------
+
+
+
 
 
 
@@ -693,7 +744,7 @@ def main():
                         centroids=centroids,
                         save_results=True,
                         force_redo=True,
-                        skip_steps=[],
+                        skip_steps=[], 
                         **s3_args,
                         **cfg.get("stage3_kwargs",{})
                     )
@@ -702,7 +753,7 @@ def main():
 
             cost, scatter = cost_function(st3, baseline_ints=baseline_ints, wave_range=(3.2,3.4))
             
-            covariance = compute_cov_metric(42)
+            covariance, all_covs = compute_cov_metric_avg(n_seeds=10, start_seed=0)
 
 
             dt = time.perf_counter() - t0
@@ -720,7 +771,7 @@ def main():
 
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
-                diagnostic_plot(st3, name_str)
+                diagnostic_plot(st3, name_str, baseline_ints=baseline_ints, outdir=outdir)
 
 
             print(
@@ -747,6 +798,9 @@ def main():
     fancyprint("=== FINAL OPTIMUM ===")
     fancyprint(current)
     plot_cost(name_str)
+
+
+
 
 if __name__ == "__main__":
     main()
