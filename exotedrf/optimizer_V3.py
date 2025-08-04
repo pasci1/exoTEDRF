@@ -24,7 +24,7 @@ from exotedrf.stage3 import run_stage3
 
 #########################################
 
-baseline_ints = [150]
+baseline_ints = [150, -100]
 cost_range = baseline_ints # Acceptable: baseline_ints, 'all', (lo,hi), [N], or [N1,N2]
 
 name_str = 'P2P_spec_whole_V3'
@@ -203,32 +203,6 @@ filenames_int4 = make_step_filenames(filenames, outdir_s2, "badpixstep")
 # ----------------------------------------
 # cost (P2P-based)
 # ----------------------------------------
-"""
-def cost_function(st3, spec_range=baseline_ints):
-    w1, w2 = 0.0, 1.0
-    flux = np.asarray(st3['Flux'], float)
-
-    # white‐light
-    white = np.nansum(flux, axis=1)
-    white = white[~np.isnan(white)]
-    norm_white = white / np.median(white)
-    d2_white = 0.5*(norm_white[:-2] + norm_white[2:]) - norm_white[1:-1]
-    ptp2_white = np.nanmedian(np.abs(d2_white))
-
-    # spectral
-    wave_meds = np.nanmedian(flux, axis=0, keepdims=True)
-    norm_spec = flux / wave_meds
-    d2_spec = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
-    ptp2_spec_wave = np.nanmedian(np.abs(d2_spec), axis=0)
-
-    if spec_range is None:
-        ptp2_spec = np.nanmedian(ptp2_spec_wave)
-    else:
-        lo, hi = spec_range
-        ptp2_spec = np.nanmedian(ptp2_spec_wave[lo:hi])
-
-    return w1*ptp2_white + w2*ptp2_spec, ptp2_spec_wave
-"""
 
 def cost_function(st3, cost_range=baseline_ints):
     """
@@ -265,7 +239,7 @@ def cost_function(st3, cost_range=baseline_ints):
     ptp2_white = np.nanmedian(np.abs(d2_white))
 
     # --- spectral term (ptp2 per wavelength) ---
-    wave_meds = np.nanmedian(flux[:100], axis=0, keepdims=True)
+    wave_meds = np.nanmedian(flux, axis=0, keepdims=True)
     norm_spec = flux / wave_meds
     d2_spec = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
     ptp2_spec_wave = np.nanmedian(np.abs(d2_spec), axis=0)
