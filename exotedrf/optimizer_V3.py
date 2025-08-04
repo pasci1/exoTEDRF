@@ -244,7 +244,7 @@ def cost_function(st3, cost_range=baseline_ints):
     d2_spec = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
     ptp2_spec_wave = np.nanmedian(np.abs(d2_spec), axis=0)
 
-   
+   print('\n\n\n#############\n flux = ', flux)
     cr = cost_range
     # default to baseline_ints if None
     if cr is None:
@@ -253,6 +253,7 @@ def cost_function(st3, cost_range=baseline_ints):
     if isinstance(cr, str):
         if cr == 'all':
             ptp2_spec = np.nanmedian(ptp2_spec_wave)
+            print(ptp2_spec)
         else:
             raise ValueError(f"Invalid cost_range={cr!r}. Acceptable: baseline_ints, 'all', (lo,hi), [N], or [N1,N2].")
 
