@@ -299,10 +299,6 @@ def cost_function(st3, baseline_ints, wave_range=None, tol=0.001):
 
     # final cost
     cost = w1 * ptp2_white + w2 * ptp2_spec
-    print('low', idx_lo, wave[idx_lo])
-    print('high', idx_hi, wave[idx_hi])
-
-
 
     return cost, ptp2_spec_wave
 
