@@ -244,7 +244,7 @@ def cost_function(st3, cost_range=baseline_ints):
     d2_spec = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
     ptp2_spec_wave = np.nanmedian(np.abs(d2_spec), axis=0)
 
-   print('\n\n\n#############\n flux = ', flux)
+    print('\n\n\n#############\n flux = ', flux)
     cr = cost_range
     # default to baseline_ints if None
     if cr is None:
