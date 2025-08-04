@@ -24,8 +24,8 @@ from exotedrf.stage3 import run_stage3
 
 #########################################
 
-baseline_ints = [150, -100]
-cost_range = baseline_ints # Acceptable: baseline_ints, 'all', (lo,hi), [N], or [N1,N2]
+baseline_ints = [150 ]
+cost_range = 'all' # Acceptable: baseline_ints, 'all', (lo,hi), [N], or [N1,N2]
 
 name_str = 'P2P_spec_whole_V3'
 uncal_indir = 'Optimize_WASP39b/DMS_uncal/'  # Where our uncalibrated files are found.
@@ -226,7 +226,7 @@ def cost_function(st3, cost_range=baseline_ints):
     ptp2_spec_wave : 1D np.ndarray
         The per-wavelength ptp2 values.
     """
-    import numpy as np
+
 
     w1, w2 = 0.0, 1.0
     flux = np.asarray(st3['Flux'], float)
