@@ -198,7 +198,7 @@ filenames_int2 = make_step_filenames(filenames, outdir_s1, "linearitystep")
 # stage‐1 → gainscalestep  (used when skipping later stage1 steps)
 filenames_int3 = make_step_filenames(filenames, outdir_s1, "gainscalestep")
 # for stage2’s badpixstep outputs you’d do:
-filenames_int4 = make_step_filenames(filenames, outdir_s2, "badpixstep")
+filenames_int4 = make_step_filenames(filenames, outdir_s1, "gainscalestep")
 
 
 
