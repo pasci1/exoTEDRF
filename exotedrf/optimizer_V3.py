@@ -581,7 +581,7 @@ def main():
             s2_args = {k:trial_params[k] for k in stage2_keys  if k in trial_params}
             s3_args = {k:trial_params[k] for k in stage3_keys  if k in trial_params}
 
-            # inherit for JumpStep
+            # inherit for JumpStep 
             if "time_window" in trial_params:
                 s1_args["JumpStep"] = {"time_window":trial_params["time_window"]}
 
