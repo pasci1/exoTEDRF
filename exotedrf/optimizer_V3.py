@@ -530,13 +530,12 @@ def main():
     total_steps   = sum(len(v) for v in param_ranges.values())
 
     stage1_keys   = [
-        "rejection_threshold", "time_rejection_threshold",
+        "rejection_threshold", "time_rejection_threshold","time_window",
         "nirspec_mask_width",   "soss_inner_mask_width",
         "soss_outer_mask_width","miri_drop_groups",
     ]
     stage2_keys   = [
         "space_thresh", "time_thresh",
-        "time_window",
         "miri_trace_width", "miri_background_width",
     ]
     stage3_keys   = ["extract_width"]
