@@ -207,7 +207,7 @@ filenames_int4 = make_step_filenames(filenames, outdir_s2, "badpixstep")
 # cost (P2P-based)
 # ----------------------------------------
 
-def cost_function(st3, baseline_ints=baseline_ints, wave_range=None, tol=0.001):
+def cost_function(st3, baseline_ints=None, wave_range=None, tol=0.001):
     """
     Compute a combined white-light + spectral metric.
 
@@ -250,7 +250,10 @@ def cost_function(st3, baseline_ints=baseline_ints, wave_range=None, tol=0.001):
     d2_spec       = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
 
     # select baseline integrations
-    if len(baseline_ints) == 1:
+    if baseline_ints == None:
+        ptp2_spec_wave = np.nanmedian(np.abs(d2_spec), axis=0)
+    
+    elif len(baseline_ints) == 1:
         N = int(baseline_ints[0])
         ptp2_spec_wave = np.nanmedian(np.abs(d2_spec[:N]), axis=0)
 
@@ -548,7 +551,7 @@ def main():
     logf.write("\t".join(param_order)+"\tduration_s\tcost\n")
 
     count = 1
-    best_cost = None
+    
     # coordinate descent
     for key in param_order:
         fancyprint(
@@ -557,6 +560,7 @@ def main():
         )
 
         best_val = current[key]
+        best_cost = None
 
         for trial in param_ranges[key]:
             fancyprint(f"Step {count}/{total_steps}: {key}={trial}")
@@ -708,7 +712,7 @@ def main():
                         baseline_ints=baseline_ints,
                         save_results=True,
                         force_redo=True,
-                        skip_steps=['AssignWCSStep','Extract2DStep','SourceTypeStep','WaveCorrStep'],
+                        skip_steps=[],
                         **s2_args,
                         **cfg.get("stage2_kwargs",{})
                     )
@@ -732,7 +736,7 @@ def main():
                         baseline_ints=baseline_ints,
                         save_results=True,
                         force_redo=True,
-                        skip_steps=['AssignWCSStep','Extract2DStep','SourceTypeStep','WaveCorrStep','BadPixStep'],
+                        skip_steps=[],
                         **s2_args,
                         **cfg.get("stage2_kwargs",{})
                     )
@@ -771,9 +775,9 @@ def main():
 
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
-                diagnostic_plot(st3, name_str, baseline_ints=baseline_ints, outdir=outdir)
+                diagnostic_plot(st3, name_str, baseline_ints=baseline_ints, outdir=outdir_f)
 
-
+            print('\n\n##########',st3['Wave'])
             print(
                 "\n############################################",
                 f"\n Step: {count}/{total_steps} completed (dt={dt:.1f}s)",
