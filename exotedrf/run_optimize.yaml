@@ -24,8 +24,8 @@ EmiCorrStep : 'skip'       # MIRI only
 SaturationStep : 'run'
 ResetStep : 'skip'         # MIRI only
 SuperBiasStep : 'run'      # SOSS/NIRSpec only
-RefPixStep : 'run'         # SOSS only
-DarkCurrentStep : 'skip'   # SOSS/NIRSpec only
+RefPixStep : 'run'         # SOSS only 
+DarkCurrentStep : 'run'   # SOSS/NIRSpec only
 OneOverFStep_grp : 'run'   # SOSS/NIRSpec only
 LinearityStep : 'run'
 JumpStep : 'run'
