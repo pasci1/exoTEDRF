@@ -177,14 +177,6 @@ def make_step_filenames(input_files, output_dir, step_tag):
         out.append(os.path.join(output_dir, new_name))
     return out
 
-# now for stage1’s dark‐current outputs:
-filenames_int1 = make_step_filenames(input_files, outdir_s1, "darkcurrentstep")
-# for stage1’s linearity outputs:
-filenames_int2 = make_step_filenames(input_files, outdir_s1, "linearitystep")
-# stage‐1 → gainscalestep  (used when skipping later stage1 steps)
-filenames_int3 = make_step_filenames(input_files, outdir_s1, "gainscalestep")
-# for stage2’s badpixstep outputs you’d do:
-filenames_int4 = make_step_filenames(input_files, outdir_s1, "gainscalestep")
 
 
 
