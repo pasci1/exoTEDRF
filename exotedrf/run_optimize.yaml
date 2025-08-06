@@ -9,7 +9,7 @@ crds_context: 'jwst_1322.pmap'
 # Input data file directory.
 input_dir : 'DMS_uncal/'
 # Input file tag.
-input_filetag : 'uncal'
+input_filetag : '_nrs1_uncal'
 # Instrument mode used; e.g., 'NIRISS/SOSS', 'NIRSpec/G395H', 'MIRI/LRS'.
 observing_mode : 'NIRSpec/PRISM'
 # Type of filter or detector used. For SOSS, either 'CLEAR' or 'F277W'. For NIRSpec, either 'NRS1' or 'NRS2'.
