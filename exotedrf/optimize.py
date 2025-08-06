@@ -450,11 +450,7 @@ def main():
         "--config", default="run_optimize.yaml",
         help="Path to your DMS config YAML"
     )
-    parser.add_argument(
-        "--instrument", required=True,
-        choices=["NIRISS", "NIRSPEC", "MIRI"],
-        help="Which instrument to optimize"
-    )
+    
     args = parser.parse_args()
 
     # Load YAML config
