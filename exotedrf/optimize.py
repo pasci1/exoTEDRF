@@ -539,6 +539,11 @@ def main():
 
             t0 = time.perf_counter()
 
+            print('\n\n\n ####### \n trial  = ', trial)
+            print('key  = ', key)
+            print('param_order  = ', param_order)
+            print('param_ranges[key]  = ', param_ranges[key])
+
             print(
                 "\n############################################",
                 f"\n Step: {count}/{total_steps} starting {key}={trial}",
