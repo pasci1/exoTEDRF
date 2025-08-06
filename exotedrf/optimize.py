@@ -437,16 +437,16 @@ def compute_cov_metric_avg(n_seeds=10, start_seed=0):
 # ----------------------------------------
 # skip step list
 # ----------------------------------------
-def get_stage_skips(cfg, steps, always_skip=None, map_oneoverf=False):
+def get_stage_skips(cfg, steps, always_skip=None, special_one_over_f=False):
     skips = set(always_skip or [])
     for step in steps:
         if cfg.get(step, 'run') == 'skip':
-            if map_oneoverf and step.startswith('OneOverFStep'):
-                # map either OneOverFStep_grp or OneOverFStep_int back to OneOverFStep
+            if special_one_over_f and step.startswith('OneOverFStep'):
                 skips.add('OneOverFStep')
             else:
                 skips.add(step)
     return list(skips)
+
 
 
 
