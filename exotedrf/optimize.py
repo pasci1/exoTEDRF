@@ -640,7 +640,7 @@ def main():
                         soss_timeseries_o2=run_cfg['soss_timeseries_o2'],
                         save_results=run_cfg['save_results'],
                         pixel_masks=run_cfg['outlier_maps'],
-                        force_redo=True,
+                        force_redo=False, 
                         flag_up_ramp=run_cfg['flag_up_ramp'],
                         rejection_threshold=run_cfg['jump_threshold'],
                         flag_in_time=run_cfg['flag_in_time'],
@@ -1141,7 +1141,7 @@ def main():
                     else:
                         stage3_results = stage2_results
 
-                    st2, st3 = stage2_results, stage3_results
+            st2, st3 = stage2_results, stage3_results
 
 
             
