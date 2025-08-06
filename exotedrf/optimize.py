@@ -651,14 +651,14 @@ def main():
                         soss_timeseries_o2=run_cfg['soss_timeseries_o2'],
                         save_results=run_cfg['save_results'],
                         pixel_masks=run_cfg['outlier_maps'],
-                        force_redo=False, 
+                        force_redo=True, 
                         flag_up_ramp=run_cfg['flag_up_ramp'],
                         rejection_threshold=run_cfg['jump_threshold'],
                         flag_in_time=run_cfg['flag_in_time'],
                         time_rejection_threshold=run_cfg['time_jump_threshold'],
                         output_tag=run_cfg['output_tag'],
                         skip_steps=stage1_skip,
-                        do_plot=False,
+                        do_plot=False, 
                         soss_inner_mask_width=run_cfg['soss_inner_mask_width'],
                         soss_outer_mask_width=run_cfg['soss_outer_mask_width'],
                         nirspec_mask_width=run_cfg['nirspec_mask_width'],
@@ -775,7 +775,7 @@ def main():
                             pixel_masks=run_cfg['outlier_maps'],
                             force_redo=True,
                             flag_up_ramp=run_cfg['flag_up_ramp'],
-                            rejection_threshold=cfg['jump_threshold'],
+                            rejection_threshold=run_cfg['jump_threshold'],
                             flag_in_time=run_cfg['flag_in_time'],
                             time_rejection_threshold=run_cfg['time_jump_threshold'],
                             output_tag=run_cfg['output_tag'],
@@ -870,7 +870,7 @@ def main():
                         stage3_results = stage2_results           
 
                     
-                elif key in ('time_rejection_threshold', 'time_window'):
+                elif key in ('time_jump_threshold','time_rejection_threshold', 'time_window'):
 
                     # --- Stage 1 on the “linearized” intermediates ---
                     always_skip1 = ['DQInitStep', 'SaturationStep', 'DarkCurrentStep',
@@ -898,7 +898,7 @@ def main():
                             flag_up_ramp=run_cfg['flag_up_ramp'],
                             rejection_threshold=run_cfg['jump_threshold'],
                             flag_in_time=run_cfg['flag_in_time'],
-                            time_rejection_threshold=run_cfg['time_rejection_threshold'],
+                            time_rejection_threshold=run_cfg['time_jump_threshold'],
                             output_tag=run_cfg['output_tag'],
                             skip_steps=stage1_skip,
                             do_plot=False,
@@ -939,7 +939,7 @@ def main():
                             soss_timeseries_o2=run_cfg['soss_timeseries_o2'],
                             oof_method=run_cfg['oof_method'],
                             output_tag=run_cfg['output_tag'],
-                            smoothing_scale=run_fg['smoothing_scale'],
+                            smoothing_scale=run_cfg['smoothing_scale'],
                             skip_steps=stage2_skip,
                             generate_lc=run_cfg['generate_lc'],
                             soss_inner_mask_width=run_cfg['soss_inner_mask_width'],
@@ -950,7 +950,7 @@ def main():
                             f277w=run_cfg['f277w'],
                             do_plot=False,
                             centroids=run_cfg['centroids'],
-                            miri_trace_width=run_fg['miri_trace_width'],
+                            miri_trace_width=run_cfg['miri_trace_width'],
                             miri_background_width=run_cfg['miri_background_width'],
                             miri_background_method=run_cfg['miri_background_method'],
                             **run_cfg.get('stage2_kwargs', {}),
@@ -995,7 +995,7 @@ def main():
                 
 
 
-                elif key in ('space_thresh', 'time_thresh', 'box_size', 'window_size'):
+                elif key in ('space_outlier_threshold','space_thresh','time_outlier_threshold', 'time_thresh', 'box_size', 'window_size'):
                     # Stage 2 on precomputed Stage-1 intermediates (filenames_int3)
                     always_skip2 = []
                     stage2_skip = get_stage_skips(
@@ -1013,7 +1013,7 @@ def main():
                             save_results=run_cfg['save_results'],
                             force_redo=True,
                             space_thresh=run_cfg['space_outlier_threshold'],
-                            time_thresh=run_cfg['time_thresh'],
+                            time_thresh=run_cfg['time_outlier_threshold'],
                             remove_components=run_cfg['remove_components'],
                             pca_components=run_cfg['pca_components'],
                             soss_timeseries=run_cfg['soss_timeseries'],
