@@ -130,33 +130,33 @@ do_plots : True
 
 # ===== Stage 1 parameter to sweep =====
 # (SOSS only) For 1/f correction; width, in pixels, of inner trace mask.
-soss_inner_mask_width : 40
+optimize_soss_inner_mask_width : 40
 # (SOSS only) For 1/f correction; width, in pixels, of outer trace mask.
-soss_outer_mask_width : 70
+optimize_soss_outer_mask_width : 70
 # (NIRSpec only) For 1/f correction; width, in pixels, of trace mask. [10, 12, 14, 16, 18, 20, 22, 24]
-nirspec_mask_width : [10, 12]
+optimize_nirspec_mask_width : [10, 12]
 # For time domain jump detection; sigma threshold for a pixel to be flagged as an outlier. [5,6,7,8,9,10]
-time_jump_threshold : 7
+optimize_time_jump_threshold : 7
 # time_window in JumpStep [3,5,7,9,11]
-time_window : 5
+optimize_time_window : 5
 
 # ===== Stage 2 parameter to sweep =====
 # (MIRI only) For background subtraction; width (in pixels) to mask around the trace.
-miri_trace_width : 20
+optimize_miri_trace_width : 20
 # (MIRI only) For background subtraction; width (in pixels) of the background region to use on either side of the trace.
-miri_background_width : 14
+optimize_miri_background_width : 14
 # For outlier detection; sigma threshold for a pixel to be flagged as an outlier, spatially. [5,6,7,8,9,10,11,12,13,14,15]
-space_outlier_threshold : 5
+optimize_space_outlier_threshold : 5
 # For outlier detection; sigma threshold for a pixel to be flagged as an outlier, temporally. [5,6,7,8,9,10,11,12,13,14,15]
-time_outlier_threshold : 5
+optimize_time_outlier_threshold : 5
 # Box size in BadPixStep [2,3,4,5,6,7,8]
-box_size : [4,5]
+optimize_box_size : [4,5]
 # Window size in BadPixStep [3,5,7,9,11]
-window_size : 7
+optimize_window_size : 7
 
 # ===== Stage 3 parameter to sweep =====
 # Box width to extract around the trace center. Passing 'optimize' will find and use the aperture width that minimizes
 # the white light curve scatter.[3,4,5,6,7,8,9,10]
-extract_width : 5
+optimize_extract_width : 5
 
 # ========================= END DMS CONFIG FILE =============================
