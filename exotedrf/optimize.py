@@ -17,7 +17,7 @@ from exotedrf.stage1 import run_stage1
 from exotedrf.stage2 import run_stage2
 from exotedrf.stage3 import run_stage3
 
-#########################################
+#####################################
 
 #uncal_indir = 'Optimize_WASP39b/DMS_uncal/'  # Where our uncalibrated files are found.
 outdir = 'pipeline_outputs_directory'
@@ -667,7 +667,7 @@ def main():
                     stage2_steps,
                     always_skip=always_skip2,
                     special_one_over_f=False
-                )
+                ) 
 
                 if 2 in cfg['run_stages']:
                     stage2_results = run_stage2(
@@ -676,7 +676,7 @@ def main():
                         soss_background_model=run_cfg['soss_background_file'],
                         baseline_ints=run_cfg['baseline_ints'],
                         save_results=run_cfg['save_results'],
-                        force_redo=True,
+                        force_redo=True, 
                         space_thresh=run_cfg['space_outlier_threshold'],
                         time_thresh=run_cfg['time_outlier_threshold'],
                         remove_components=run_cfg['remove_components'],
