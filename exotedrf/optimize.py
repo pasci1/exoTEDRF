@@ -495,6 +495,12 @@ def main():
     filenames_int3 = make_step_filenames(input_files, outdir_s1, "gainscalestep")
     filenames_int4 = make_step_filenames(input_files, outdir_s1, "gainscalestep")
 
+    print("➡ will reuse these filenames_int1:", filenames_int1)
+    print("➡ will reuse these filenames_int2:", filenames_int2)
+    print("➡ will reuse these filenames_int3:", filenames_int3)
+    print("➡ will reuse these filenames_int4:", filenames_int4)
+
+
 
     if not input_files:
         fancyprint(f"[WARN] No files in {cfg['input_dir']}, globbing *.fits")
