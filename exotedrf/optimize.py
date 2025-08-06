@@ -434,6 +434,19 @@ def compute_cov_metric_avg(n_seeds=10, start_seed=0):
 # ----------------------------------------
 
 
+# ----------------------------------------
+# skip step list
+# ----------------------------------------
+def get_stage_skips(cfg, steps, always_skip=None, map_oneoverf=False):
+    skips = set(always_skip or [])
+    for step in steps:
+        if cfg.get(step, 'run') == 'skip':
+            if map_oneoverf and step.startswith('OneOverFStep'):
+                # map either OneOverFStep_grp or OneOverFStep_int back to OneOverFStep
+                skips.add('OneOverFStep')
+            else:
+                skips.add(step)
+    return list(skips)
 
 
 
@@ -582,170 +595,544 @@ def main():
 
             # BadPixStep overrides
             badpix = {}
-            if "box_size"   in trial_params: badpix["box_size"]   = trial_params["box_size"]
-            if "window_size" in trial_params: badpix["window_size"] = trial_params["window_size"]
+            if "box_size" in trial_params:
+                badpix["box_size"] = trial_params["box_size"]
+            if "window_size" in trial_params:
+                badpix["window_size"] = trial_params["window_size"]
             if badpix:
                 s2_args["BadPixStep"] = badpix
 
-            if best_cost == None:
-                # Stage 1
-                st1 = run_stage1(
-                    input_files,
-                    mode=cfg["observing_mode"],
-                    baseline_ints=baseline_ints,
-                    flag_up_ramp=False,
-                    save_results=True,
-                    force_redo=True,
-                    skip_steps=[],
-                    **s1_args
-                )
-                
-                # Stage 2
-                st2, centroids = run_stage2(
-                    st1,
-                    mode=cfg["observing_mode"],
-                    baseline_ints=baseline_ints,
-                    save_results=True,
-                    force_redo=True,
-                    skip_steps=[],
-                    **s2_args,
-                    **cfg.get("stage2_kwargs",{})
-                )
-                if isinstance(centroids,np.ndarray):
-                    centroids = pd.DataFrame(centroids.T,columns=["xpos","ypos"])
+            stage1_steps = [
+                'DQInitStep', 'EmiCorrStep', 'SaturationStep', 'ResetStep', 'SuperBiasStep',
+                'RefPixStep', 'DarkCurrentStep', 'OneOverFStep_grp', 'LinearityStep',
+                'JumpStep', 'RampFitStep', 'GainScaleStep'
+            ]
 
-                # Stage 3
-                st3 = run_stage3(
-                    st2,
-                    centroids=centroids,
-                    save_results=True,
-                    force_redo=True,
-                    skip_steps=[],
-                    **s3_args,
-                    **cfg.get("stage3_kwargs",{})
+            stage2_steps = [
+                'AssignWCSStep', 'Extract2DStep', 'SourceTypeStep', 'WaveCorrStep',
+                'FlatFieldStep', 'BackgroundStep', 'OneOverFStep_int',
+                'BadPixStep', 'PCAReconstructStep', 'TracingStep'
+            ]
+
+            stage3_steps = []
+
+            if best_cost is None:
+                # ===== Stage 1 =====
+                always_skip1 = []
+                stage1_skip = get_stage_skips(
+                    cfg,
+                    stage1_steps,
+                    always_skip=always_skip1,
+                    special_one_over_f=True
                 )
+
+                if 1 in cfg['run_stages']:
+                    stage1_results = run_stage1(
+                        input_files,
+                        mode=cfg['observing_mode'],
+                        soss_background_model=cfg['soss_background_file'],
+                        baseline_ints=cfg['baseline_ints'],
+                        oof_method=cfg['oof_method'],
+                        superbias_method=cfg['superbias_method'],
+                        soss_timeseries=cfg['soss_timeseries'],
+                        soss_timeseries_o2=cfg['soss_timeseries_o2'],
+                        save_results=cfg['save_results'],
+                        pixel_masks=cfg['outlier_maps'],
+                        force_redo=True,
+                        flag_up_ramp=cfg['flag_up_ramp'],
+                        rejection_threshold=cfg['jump_threshold'],
+                        flag_in_time=cfg['flag_in_time'],
+                        time_rejection_threshold=cfg['time_jump_threshold'],
+                        output_tag=cfg['output_tag'],
+                        skip_steps=stage1_skip,
+                        do_plot=cfg['do_plots'],
+                        soss_inner_mask_width=cfg['soss_inner_mask_width'],
+                        soss_outer_mask_width=cfg['soss_outer_mask_width'],
+                        nirspec_mask_width=cfg['nirspec_mask_width'],
+                        centroids=cfg['centroids'],
+                        hot_pixel_map=cfg['hot_pixel_map'],
+                        miri_drop_groups=cfg['miri_drop_groups'],
+                        **cfg.get('stage1_kwargs', {})
+                    )
+                else:
+                    stage1_results = input_files
+
+                # ===== Stage 2 =====
+                always_skip2 = []
+                stage2_skip = get_stage_skips(
+                    cfg,
+                    stage2_steps,
+                    always_skip=always_skip2,
+                    special_one_over_f=False
+                )
+
+                if 2 in cfg['run_stages']:
+                    stage2_results = run_stage2(
+                        stage1_results,
+                        mode=cfg['observing_mode'],
+                        soss_background_model=cfg['soss_background_file'],
+                        baseline_ints=cfg['baseline_ints'],
+                        save_results=cfg['save_results'],
+                        force_redo=True,
+                        space_thresh=cfg['space_outlier_threshold'],
+                        time_thresh=cfg['time_outlier_threshold'],
+                        remove_components=cfg['remove_components'],
+                        pca_components=cfg['pca_components'],
+                        soss_timeseries=cfg['soss_timeseries'],
+                        soss_timeseries_o2=cfg['soss_timeseries_o2'],
+                        oof_method=cfg['oof_method'],
+                        output_tag=cfg['output_tag'],
+                        smoothing_scale=cfg['smoothing_scale'],
+                        skip_steps=stage2_skip,
+                        generate_lc=cfg['generate_lc'],
+                        soss_inner_mask_width=cfg['soss_inner_mask_width'],
+                        soss_outer_mask_width=cfg['soss_outer_mask_width'],
+                        nirspec_mask_width=cfg['nirspec_mask_width'],
+                        pixel_masks=cfg['outlier_maps'],
+                        generate_order0_mask=cfg['generate_order0_mask'],
+                        f277w=cfg['f277w'],
+                        do_plot=cfg['do_plots'],
+                        centroids=cfg['centroids'],
+                        miri_trace_width=cfg['miri_trace_width'],
+                        miri_background_width=cfg['miri_background_width'],
+                        miri_background_method=cfg['miri_background_method'],
+                        **cfg.get('stage2_kwargs', {}),
+                        **s2_args
+                    )
+                    stage2_results, centroids = stage2_results
+                else:
+                    stage2_results = stage1_results
+                    centroids = cfg['centroids']
+
+                # ===== Stage 3 =====
+                always_skip3 = []
+                stage3_skip = get_stage_skips(
+                    cfg,
+                    stage3_steps,
+                    always_skip=always_skip3,
+                    special_one_over_f=False
+                )
+
+                if 3 in cfg['run_stages']:
+                    this_centroid = cfg['centroids'] if cfg['centroids'] is not None else centroids
+                    stage3_results = run_stage3(
+                        stage2_results,
+                        save_results=cfg['save_results'],
+                        force_redo=True,
+                        extract_method=cfg['extract_method'],
+                        soss_specprofile=cfg['soss_specprofile'],
+                        centroids=this_centroid,
+                        extract_width=cfg['extract_width'],
+                        st_teff=cfg['st_teff'],
+                        st_logg=cfg['st_logg'],
+                        st_met=cfg['st_met'],
+                        planet_letter=cfg['planet_letter'],
+                        output_tag=cfg['output_tag'],
+                        do_plot=cfg['do_plots'],
+                        skip_steps=stage3_skip,
+                        **cfg.get('stage3_kwargs', {})
+                    )
+                else:
+                    stage3_results = stage2_results
+
             
             else:
-                if key in ('nirspec_mask_width'):
-
-                    st1 = run_stage1(
-                        filenames_int1,
-                        mode=cfg["observing_mode"],
-                        baseline_ints=baseline_ints,
-                        flag_up_ramp=False,
-                        save_results=True,
-                        force_redo=True,
-                        skip_steps=['DQInitStep','SaturationStep','DarkCurrentStep'],
-                        **s1_args
+                if key == 'nirspec_mask_width':
+                    # --- Stage 1 on darkcurrent‐stepped files ---
+                    always_skip1 = ['DQInitStep', 'SaturationStep', 'DarkCurrentStep']
+                    stage1_skip = get_stage_skips(
+                        cfg,
+                        stage1_steps,
+                        always_skip=always_skip1,
+                        special_one_over_f=True
                     )
+                    if 1 in cfg['run_stages']:
+                        stage1_results = run_stage1(
+                            filenames_int1,
+                            mode=cfg['observing_mode'],
+                            soss_background_model=cfg['soss_background_file'],
+                            baseline_ints=cfg['baseline_ints'],
+                            oof_method=cfg['oof_method'],
+                            superbias_method=cfg['superbias_method'],
+                            soss_timeseries=cfg['soss_timeseries'],
+                            soss_timeseries_o2=cfg['soss_timeseries_o2'],
+                            save_results=cfg['save_results'],
+                            pixel_masks=cfg['outlier_maps'],
+                            force_redo=True,
+                            flag_up_ramp=cfg['flag_up_ramp'],
+                            rejection_threshold=cfg['jump_threshold'],
+                            flag_in_time=cfg['flag_in_time'],
+                            time_rejection_threshold=cfg['time_jump_threshold'],
+                            output_tag=cfg['output_tag'],
+                            skip_steps=stage1_skip,
+                            do_plot=cfg['do_plots'],
+                            soss_inner_mask_width=cfg['soss_inner_mask_width'],
+                            soss_outer_mask_width=cfg['soss_outer_mask_width'],
+                            nirspec_mask_width=trial,         # use the current trial value
+                            centroids=cfg['centroids'],
+                            hot_pixel_map=cfg['hot_pixel_map'],
+                            miri_drop_groups=cfg['miri_drop_groups'],
+                            **cfg.get('stage1_kwargs', {})
+                        )
+                    else:
+                        stage1_results = filenames_int1
 
-                    st2, centroids = run_stage2(
-                        st1,
-                        mode=cfg["observing_mode"],
-                        baseline_ints=baseline_ints,
-                        save_results=True,
-                        force_redo=True,
-                        skip_steps=[],
-                        **s2_args,
-                        **cfg.get("stage2_kwargs",{})
+                    # --- Stage 2 on those results ---
+                    always_skip2 = []
+                    stage2_skip = get_stage_skips(
+                        cfg,
+                        stage2_steps,
+                        always_skip=always_skip2,
+                        special_one_over_f=False
                     )
-                    if isinstance(centroids,np.ndarray):
-                        centroids = pd.DataFrame(centroids.T,columns=["xpos","ypos"])
-                    
-                    st3 = run_stage3(
-                        st2,
-                        centroids=centroids,
-                        save_results=True,
-                        force_redo=True,
-                        skip_steps=[],
-                        **s3_args,
-                        **cfg.get("stage3_kwargs",{})
-                    )                    
+                    if 2 in cfg['run_stages']:
+                        stage2_results, centroids = run_stage2(
+                            stage1_results,
+                            mode=cfg['observing_mode'],
+                            soss_background_model=cfg['soss_background_file'],
+                            baseline_ints=cfg['baseline_ints'],
+                            save_results=cfg['save_results'],
+                            force_redo=True,
+                            space_thresh=cfg['space_outlier_threshold'],
+                            time_thresh=cfg['time_outlier_threshold'],
+                            remove_components=cfg['remove_components'],
+                            pca_components=cfg['pca_components'],
+                            soss_timeseries=cfg['soss_timeseries'],
+                            soss_timeseries_o2=cfg['soss_timeseries_o2'],
+                            oof_method=cfg['oof_method'],
+                            output_tag=cfg['output_tag'],
+                            smoothing_scale=cfg['smoothing_scale'],
+                            skip_steps=stage2_skip,
+                            generate_lc=cfg['generate_lc'],
+                            soss_inner_mask_width=cfg['soss_inner_mask_width'],
+                            soss_outer_mask_width=cfg['soss_outer_mask_width'],
+                            nirspec_mask_width=trial,         # propagate trial variant
+                            pixel_masks=cfg['outlier_maps'],
+                            generate_order0_mask=cfg['generate_order0_mask'],
+                            f277w=cfg['f277w'],
+                            do_plot=cfg['do_plots'],
+                            centroids=cfg['centroids'],
+                            miri_trace_width=cfg['miri_trace_width'],
+                            miri_background_width=cfg['miri_background_width'],
+                            miri_background_method=cfg['miri_background_method'],
+                            **cfg.get('stage2_kwargs', {}),
+                            **s2_args
+                        )
+                    else:
+                        stage2_results = stage1_results
+                        centroids = cfg['centroids']
+
+                    # --- Stage 3 on those results ---
+                    always_skip3 = []
+                    stage3_skip = get_stage_skips(
+                        cfg,
+                        stage3_steps,
+                        always_skip=always_skip3,
+                        special_one_over_f=False
+                    )
+                    if 3 in cfg['run_stages']:
+                        this_centroid = cfg['centroids'] if cfg['centroids'] is not None else centroids
+                        stage3_results = run_stage3(
+                            stage2_results,
+                            save_results=cfg['save_results'],
+                            force_redo=True,
+                            extract_method=cfg['extract_method'],
+                            soss_specprofile=cfg['soss_specprofile'],
+                            centroids=this_centroid,
+                            extract_width=cfg['extract_width'],
+                            st_teff=cfg['st_teff'],
+                            st_logg=cfg['st_logg'],
+                            st_met=cfg['st_met'],
+                            planet_letter=cfg['planet_letter'],
+                            output_tag=cfg['output_tag'],
+                            do_plot=cfg['do_plots'],
+                            skip_steps=stage3_skip,
+                            **cfg.get('stage3_kwargs', {})
+                        )
+                    else:
+                        stage3_results = stage2_results           
 
                     
                 elif key in ('time_rejection_threshold', 'time_window'):
-                                        
-                    st1 = run_stage1(
-                        filenames_int2,
-                        mode=cfg["observing_mode"],
-                        baseline_ints=baseline_ints,
-                        flag_up_ramp=False,
-                        save_results=True,
-                        force_redo=True,
-                        skip_steps=['DQInitStep','SaturationStep','DarkCurrentStep','OneOverFStep','LinearityStep'],
-                        **s1_args
+
+                    # --- Stage 1 on the “linearized” intermediates ---
+                    always_skip1 = ['DQInitStep', 'SaturationStep', 'DarkCurrentStep',
+                                    'OneOverFStep', 'LinearityStep']
+                    stage1_skip = get_stage_skips(
+                        cfg,
+                        stage1_steps,
+                        always_skip=always_skip1,
+                        special_one_over_f=True
                     )
 
-                    st2, centroids = run_stage2(
-                        st1,
-                        mode=cfg["observing_mode"],
-                        baseline_ints=baseline_ints,
-                        save_results=True,
-                        force_redo=True,
-                        skip_steps=[],
-                        **s2_args,
-                        **cfg.get("stage2_kwargs",{})
+                    if 1 in cfg['run_stages']:
+                        stage1_results = run_stage1(
+                            filenames_int2,
+                            mode=cfg['observing_mode'],
+                            soss_background_model=cfg['soss_background_file'],
+                            baseline_ints=cfg['baseline_ints'],
+                            oof_method=cfg['oof_method'],
+                            superbias_method=cfg['superbias_method'],
+                            soss_timeseries=cfg['soss_timeseries'],
+                            soss_timeseries_o2=cfg['soss_timeseries_o2'],
+                            save_results=cfg['save_results'],
+                            pixel_masks=cfg['outlier_maps'],
+                            force_redo=True,
+                            flag_up_ramp=cfg['flag_up_ramp'],
+                            rejection_threshold=cfg['jump_threshold'],
+                            flag_in_time=cfg['flag_in_time'],
+                            time_rejection_threshold=trial_params['time_rejection_threshold'],
+                            output_tag=cfg['output_tag'],
+                            skip_steps=stage1_skip,
+                            do_plot=cfg['do_plots'],
+                            soss_inner_mask_width=cfg['soss_inner_mask_width'],
+                            soss_outer_mask_width=cfg['soss_outer_mask_width'],
+                            nirspec_mask_width=cfg['nirspec_mask_width'],
+                            centroids=cfg['centroids'],
+                            hot_pixel_map=cfg['hot_pixel_map'],
+                            miri_drop_groups=cfg['miri_drop_groups'],
+                            **cfg.get('stage1_kwargs', {})
+                        )
+                    else:
+                        stage1_results = filenames_int2
+
+                    # --- Stage 2 on those results ---
+                    always_skip2 = []
+                    stage2_skip = get_stage_skips(
+                        cfg,
+                        stage2_steps,
+                        always_skip=always_skip2,
+                        special_one_over_f=False
                     )
-                    if isinstance(centroids,np.ndarray):
-                        centroids = pd.DataFrame(centroids.T,columns=["xpos","ypos"])
-                    
-                    st3 = run_stage3(
-                        st2,
-                        centroids=centroids,
-                        save_results=True,
-                        force_redo=True,
-                        skip_steps=[],
-                        **s3_args,
-                        **cfg.get("stage3_kwargs",{})
-                    )                             
+
+                    if 2 in cfg['run_stages']:
+                        stage2_results, centroids = run_stage2(
+                            stage1_results,
+                            mode=cfg['observing_mode'],
+                            soss_background_model=cfg['soss_background_file'],
+                            baseline_ints=cfg['baseline_ints'],
+                            save_results=cfg['save_results'],
+                            force_redo=True,
+                            space_thresh=cfg['space_outlier_threshold'],
+                            time_thresh=cfg['time_outlier_threshold'],
+                            remove_components=cfg['remove_components'],
+                            pca_components=cfg['pca_components'],
+                            soss_timeseries=cfg['soss_timeseries'],
+                            soss_timeseries_o2=cfg['soss_timeseries_o2'],
+                            oof_method=cfg['oof_method'],
+                            output_tag=cfg['output_tag'],
+                            smoothing_scale=cfg['smoothing_scale'],
+                            skip_steps=stage2_skip,
+                            generate_lc=cfg['generate_lc'],
+                            soss_inner_mask_width=cfg['soss_inner_mask_width'],
+                            soss_outer_mask_width=cfg['soss_outer_mask_width'],
+                            nirspec_mask_width=cfg['nirspec_mask_width'],
+                            pixel_masks=cfg['outlier_maps'],
+                            generate_order0_mask=cfg['generate_order0_mask'],
+                            f277w=cfg['f277w'],
+                            do_plot=cfg['do_plots'],
+                            centroids=cfg['centroids'],
+                            miri_trace_width=cfg['miri_trace_width'],
+                            miri_background_width=cfg['miri_background_width'],
+                            miri_background_method=cfg['miri_background_method'],
+                            **cfg.get('stage2_kwargs', {}),
+                            **s2_args
+                        )
+                    else:
+                        stage2_results = stage1_results
+                        centroids = cfg['centroids']
+
+                    # --- Stage 3 on those results ---
+                    always_skip3 = []
+                    stage3_skip = get_stage_skips(
+                        cfg,
+                        stage3_steps,
+                        always_skip=always_skip3,
+                        special_one_over_f=False
+                    )
+
+                    if 3 in cfg['run_stages']:
+                        this_centroid = cfg['centroids'] if cfg['centroids'] is not None else centroids
+                        stage3_results = run_stage3(
+                            stage2_results,
+                            save_results=cfg['save_results'],
+                            force_redo=True,
+                            extract_method=cfg['extract_method'],
+                            soss_specprofile=cfg['soss_specprofile'],
+                            centroids=this_centroid,
+                            extract_width=cfg['extract_width'],
+                            st_teff=cfg['st_teff'],
+                            st_logg=cfg['st_logg'],
+                            st_met=cfg['st_met'],
+                            planet_letter=cfg['planet_letter'],
+                            output_tag=cfg['output_tag'],
+                            do_plot=cfg['do_plots'],
+                            skip_steps=stage3_skip,
+                            **cfg.get('stage3_kwargs', {})
+                        )
+                    else:
+                        stage3_results = stage2_results
+
+                
+
+
                 elif key in ('space_thresh', 'time_thresh', 'box_size', 'window_size'):
+                    # Stage 2 on precomputed Stage-1 intermediates (filenames_int3)
+                    always_skip2 = []
+                    stage2_skip = get_stage_skips(
+                        cfg,
+                        stage2_steps,
+                        always_skip=always_skip2,
+                        special_one_over_f=False
+                    )
 
-                    st2, centroids = run_stage2(
-                        filenames_int3,
-                        mode=cfg["observing_mode"],
-                        baseline_ints=baseline_ints,
-                        save_results=True,
-                        force_redo=True,
-                        skip_steps=[],
-                        **s2_args,
-                        **cfg.get("stage2_kwargs",{})
+                    if 2 in cfg['run_stages']:
+                        stage2_results, centroids = run_stage2(
+                            filenames_int3,
+                            mode=cfg['observing_mode'],
+                            baseline_ints=cfg['baseline_ints'],
+                            save_results=cfg['save_results'],
+                            force_redo=True,
+                            space_thresh=trial_params.get('space_thresh', cfg['space_outlier_threshold']),
+                            time_thresh=trial_params.get('time_thresh', cfg['time_outlier_threshold']),
+                            remove_components=cfg['remove_components'],
+                            pca_components=cfg['pca_components'],
+                            soss_timeseries=cfg['soss_timeseries'],
+                            soss_timeseries_o2=cfg['soss_timeseries_o2'],
+                            oof_method=cfg['oof_method'],
+                            output_tag=cfg['output_tag'],
+                            smoothing_scale=cfg['smoothing_scale'],
+                            skip_steps=stage2_skip,
+                            generate_lc=cfg['generate_lc'],
+                            soss_inner_mask_width=cfg['soss_inner_mask_width'],
+                            soss_outer_mask_width=cfg['soss_outer_mask_width'],
+                            nirspec_mask_width=cfg['nirspec_mask_width'],
+                            pixel_masks=cfg['outlier_maps'],
+                            generate_order0_mask=cfg['generate_order0_mask'],
+                            f277w=cfg['f277w'],
+                            do_plot=cfg['do_plots'],
+                            centroids=cfg['centroids'],
+                            miri_trace_width=cfg['miri_trace_width'],
+                            miri_background_width=cfg['miri_background_width'],
+                            miri_background_method=cfg['miri_background_method'],
+                            **cfg.get('stage2_kwargs', {}),
+                            **s2_args
+                        )
+                    else:
+                        stage2_results = filenames_int3
+                        centroids = cfg['centroids']
+
+                    # Stage 3
+                    always_skip3 = []
+                    stage3_skip = get_stage_skips(
+                        cfg,
+                        stage3_steps,
+                        always_skip=always_skip3,
+                        special_one_over_f=False
                     )
-                    if isinstance(centroids,np.ndarray):
-                        centroids = pd.DataFrame(centroids.T,columns=["xpos","ypos"])
-                    
-                    st3 = run_stage3(
-                        st2,
-                        centroids=centroids,
-                        save_results=True,
-                        force_redo=True,
-                        skip_steps=[],
-                        **s3_args,
-                        **cfg.get("stage3_kwargs",{})
+
+                    if 3 in cfg['run_stages']:
+                        this_centroid = cfg['centroids'] if cfg['centroids'] is not None else centroids
+                        stage3_results = run_stage3(
+                            stage2_results,
+                            save_results=cfg['save_results'],
+                            force_redo=True,
+                            extract_method=cfg['extract_method'],
+                            soss_specprofile=cfg['soss_specprofile'],
+                            centroids=this_centroid,
+                            extract_width=cfg['extract_width'],
+                            st_teff=cfg['st_teff'],
+                            st_logg=cfg['st_logg'],
+                            st_met=cfg['st_met'],
+                            planet_letter=cfg['planet_letter'],
+                            output_tag=cfg['output_tag'],
+                            do_plot=cfg['do_plots'],
+                            skip_steps=stage3_skip,
+                            **cfg.get('stage3_kwargs', {})
+                        )
+                    else:
+                        stage3_results = stage2_results
+
+
+                elif key == 'extract_width':
+                    # Stage 2 on precomputed Stage-1 intermediates (filenames_int4)
+                    always_skip2 = []
+                    stage2_skip = get_stage_skips(
+                        cfg,
+                        stage2_steps,
+                        always_skip=always_skip2,
+                        special_one_over_f=False
                     )
-                elif key in ('extract_width'):
-      
-                    st2, centroids = run_stage2(
-                        filenames_int4,
-                        mode=cfg["observing_mode"],
-                        baseline_ints=baseline_ints,
-                        save_results=True,
-                        force_redo=True,
-                        skip_steps=[],
-                        **s2_args,
-                        **cfg.get("stage2_kwargs",{})
+
+                    if 2 in cfg['run_stages']:
+                        stage2_results, centroids = run_stage2(
+                            filenames_int4,
+                            mode=cfg['observing_mode'],
+                            baseline_ints=cfg['baseline_ints'],
+                            save_results=cfg['save_results'],
+                            force_redo=True,
+                            space_thresh=cfg['space_outlier_threshold'],
+                            time_thresh=cfg['time_outlier_threshold'],
+                            remove_components=cfg['remove_components'],
+                            pca_components=cfg['pca_components'],
+                            soss_timeseries=cfg['soss_timeseries'],
+                            soss_timeseries_o2=cfg['soss_timeseries_o2'],
+                            oof_method=cfg['oof_method'],
+                            output_tag=cfg['output_tag'],
+                            smoothing_scale=cfg['smoothing_scale'],
+                            skip_steps=stage2_skip,
+                            generate_lc=cfg['generate_lc'],
+                            soss_inner_mask_width=cfg['soss_inner_mask_width'],
+                            soss_outer_mask_width=cfg['soss_outer_mask_width'],
+                            nirspec_mask_width=cfg['nirspec_mask_width'],
+                            pixel_masks=cfg['outlier_maps'],
+                            generate_order0_mask=cfg['generate_order0_mask'],
+                            f277w=cfg['f277w'],
+                            do_plot=cfg['do_plots'],
+                            centroids=cfg['centroids'],
+                            miri_trace_width=cfg['miri_trace_width'],
+                            miri_background_width=cfg['miri_background_width'],
+                            miri_background_method=cfg['miri_background_method'],
+                            **cfg.get('stage2_kwargs', {}),
+                            **s2_args
+                        )
+                    else:
+                        stage2_results = filenames_int4
+                        centroids = cfg['centroids']
+
+                    # Stage 3 with trial-specific extract_width
+                    always_skip3 = []
+                    stage3_skip = get_stage_skips(
+                        cfg,
+                        stage3_steps,
+                        always_skip=always_skip3,
+                        special_one_over_f=False
                     )
-                    if isinstance(centroids,np.ndarray):
-                        centroids = pd.DataFrame(centroids.T,columns=["xpos","ypos"])
-                    
-                    st3 = run_stage3(
-                        st2,
-                        centroids=centroids,
-                        save_results=True,
-                        force_redo=True,
-                        skip_steps=[], 
-                        **s3_args,
-                        **cfg.get("stage3_kwargs",{})
-                    )
+
+                    if 3 in cfg['run_stages']:
+                        this_centroid = cfg['centroids'] if cfg['centroids'] is not None else centroids
+                        stage3_results = run_stage3(
+                            stage2_results,
+                            save_results=cfg['save_results'],
+                            force_redo=True,
+                            extract_method=cfg['extract_method'],
+                            soss_specprofile=cfg['soss_specprofile'],
+                            centroids=this_centroid,
+                            extract_width=trial_params['extract_width'],
+                            st_teff=cfg['st_teff'],
+                            st_logg=cfg['st_logg'],
+                            st_met=cfg['st_met'],
+                            planet_letter=cfg['planet_letter'],
+                            output_tag=cfg['output_tag'],
+                            do_plot=cfg['do_plots'],
+                            skip_steps=stage3_skip,
+                            **cfg.get('stage3_kwargs', {})
+                        )
+                    else:
+                        stage3_results = stage2_results
+
+                    st2, st3 = stage2_results, stage3_results
+
 
             
 
