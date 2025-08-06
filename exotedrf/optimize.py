@@ -772,7 +772,7 @@ def main():
                             do_plot=run_cfg['do_plots'],
                             soss_inner_mask_width=run_cfg['soss_inner_mask_width'],
                             soss_outer_mask_width=run_cfg['soss_outer_mask_width'],
-                            nirspec_mask_width=run_cfg['nirspec_mask_width']
+                            nirspec_mask_width=run_cfg['nirspec_mask_width'],
                             centroids=run_cfg['centroids'],
                             hot_pixel_map=run_cfg['hot_pixel_map'],
                             miri_drop_groups=run_cfg['miri_drop_groups'],
@@ -811,7 +811,7 @@ def main():
                             generate_lc=run_cfg['generate_lc'],
                             soss_inner_mask_width=run_cfg['soss_inner_mask_width'],
                             soss_outer_mask_width=run_cfg['soss_outer_mask_width'],
-                            nirspec_mask_width=run_cfg['nirspec_mask_width']        
+                            nirspec_mask_width=run_cfg['nirspec_mask_width'],     
                             pixel_masks=run_cfg['outlier_maps'],
                             generate_order0_mask=run_cfg['generate_order0_mask'],
                             f277w=run_cfg['f277w'],
