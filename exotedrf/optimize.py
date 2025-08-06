@@ -489,6 +489,17 @@ def main():
         filter_detector=cfg["filter_detector"],
     ) 
 
+
+
+
+    if not input_files:
+        fancyprint(f"[WARN] No files in {cfg['input_dir']}, globbing *.fits")
+        input_files = sorted(glob.glob(os.path.join(cfg["input_dir"], "*.fits")))
+    if not input_files:
+        raise RuntimeError(f"No FITS found in {cfg['input_dir']}")
+    fancyprint(f"Using {len(input_files)} segment(s) from {cfg['input_dir']}")
+
+
     # Generate filenames for intermediate outputs
     filenames_int1 = make_step_filenames(input_files, outdir_s1, "darkcurrentstep")
     filenames_int2 = make_step_filenames(input_files, outdir_s1, "linearitystep")
@@ -502,12 +513,6 @@ def main():
 
 
 
-    if not input_files:
-        fancyprint(f"[WARN] No files in {cfg['input_dir']}, globbing *.fits")
-        input_files = sorted(glob.glob(os.path.join(cfg["input_dir"], "*.fits")))
-    if not input_files:
-        raise RuntimeError(f"No FITS found in {cfg['input_dir']}")
-    fancyprint(f"Using {len(input_files)} segment(s) from {cfg['input_dir']}")
 
 
     # --- parameter ranges ---
