@@ -292,7 +292,7 @@ def cost_function(st3, baseline_ints=None, wave_range=None, tol=0.001):
 # diagnostic_plot
 # ----------------------------------------
 
-def diagnostic_plot(st3, name_str, baseline_ints=baseline_ints, outdir=outdir_f):
+def diagnostic_plot(st3, name_str, baseline_ints, outdir=outdir_f):
     """
     Generate three diagnostic plots from the stage-3 flux array:
       1. Normalized white-light curve
@@ -466,7 +466,7 @@ def main():
     os.environ.setdefault('CRDS_CONTEXT', cfg.get('crds_context', 'jwst_1322.pmap'))
 
 
-    baseline_ints = cfg.get('baseline_ints', [50, -50])
+    baseline_ints = cfg.get('baseline_ints', [100, -100])
     name_str = cfg.get('name_tag', 'default_run')
 
     t0_total = time.perf_counter()
