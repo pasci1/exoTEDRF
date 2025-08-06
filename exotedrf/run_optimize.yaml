@@ -2,7 +2,7 @@
 #
 # This is the configuration file for run_DMS.py.
 #
-# ===== Key Parameters =====
+# ===== Key Parameters ===== 
 # Path to CRDS cache.
 crds_cache_path : './crds_cache/'
 crds_context: 'jwst_1322.pmap'

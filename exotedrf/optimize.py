@@ -615,7 +615,7 @@ def main():
                 'FlatFieldStep', 'BackgroundStep', 'OneOverFStep_int',
                 'BadPixStep', 'PCAReconstructStep', 'TracingStep'
             ]
-
+ 
             stage3_steps = []
 
             if best_cost is None:
