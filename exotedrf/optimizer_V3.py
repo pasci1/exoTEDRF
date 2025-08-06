@@ -61,7 +61,7 @@ def plot_cost(name_str, table_height=0.4):
     df = df[pd.to_numeric(df["cost"], errors="coerce").notna()].reset_index(drop=True)
 
     # Get parameter columns (excluding duration_s and cost columns)
-    param_cols = df.columns[:-3]
+    param_cols = df.columns[:-2]
 
     # Track changed parameter and labels
     labels = []

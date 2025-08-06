@@ -1,281 +1,787 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-import os, time, itertools, yaml, argparse
+import os
+import glob
+import time
+import argparse
 import numpy as np
-from astropy.stats import mad_std
+import pandas as pd
 from jwst import datamodels
-from scipy.signal import detrend
-from astropy.stats import mad_std
+import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
+from astropy.io import fits
 
-from exotedrf.utils    import parse_config
-from exotedrf.stage1   import run_stage1
+from exotedrf import utils
+from exotedrf.utils import parse_config, unpack_input_dir, fancyprint
+from exotedrf.stage1 import run_stage1
+from exotedrf.stage2 import run_stage2
+from exotedrf.stage3 import run_stage3
+
+#########################################
+
+#uncal_indir = 'Optimize_WASP39b/DMS_uncal/'  # Where our uncalibrated files are found.
+outdir = 'pipeline_outputs_directory'
+outdir_f = 'pipeline_outputs_directory/Files'
+outdir_s1 = 'pipeline_outputs_directory/Stage1/'
+outdir_s2 = 'pipeline_outputs_directory/Stage2/'
+outdir_s3 = 'pipeline_outputs_directory/Stage3/'
+outdir_s4 = 'pipeline_outputs_directory/Stage4/'
+
+utils.verify_path('pipeline_outputs_directory')
+utils.verify_path('pipeline_outputs_directory/Files')
+utils.verify_path('pipeline_outputs_directory/Stage1')
+utils.verify_path('pipeline_outputs_directory/Stage2')
+utils.verify_path('pipeline_outputs_directory/Stage3')
+utils.verify_path('pipeline_outputs_directory/Stage4')
+
 
 # ----------------------------------------
-# 1) Cost‐function definitions
+# plot cost
 # ----------------------------------------
-def compute_white_light(dm):
+
+def plot_cost(name_str, table_height=0.4):
+    # Load data
+    df = pd.read_csv(f"pipeline_outputs_directory/Files/Cost_{name_str}.txt", delimiter="\t")
+
+    # Drop rows with non-numeric cost values
+    df = df[pd.to_numeric(df["cost"], errors="coerce").notna()].reset_index(drop=True)
+
+    # Get parameter columns (excluding duration_s and cost columns)
+    param_cols = df.columns[:-2]
+
+    # Track changed parameter and labels
+    labels = []
+    sweep_lines = []
+    prev_row = None
+    last_changed_param = None
+
+    for idx, row in df.iterrows():
+        if prev_row is None:
+            value = int(row["nirspec_mask_width"]) if float(row["nirspec_mask_width"]).is_integer() else row["nirspec_mask_width"]
+            label = f"nirspec_mask_width={value}"
+            changed_param = "nirspec_mask_width"
+        else:
+            diffs = [col for col in param_cols if row[col] != prev_row[col]]
+            if len(diffs) == 1:
+                changed_param = diffs[0]
+            elif len(diffs) >= 2:
+                changed_param = diffs[1]
+            else:
+                changed_param = last_changed_param
+
+            if changed_param != last_changed_param:
+                sweep_lines.append(idx)
+
+            value = row[changed_param]
+            if isinstance(value, (int, float)) and float(value).is_integer():
+                value = int(value)
+            label = f"{changed_param}={value}"
+
+        last_changed_param = changed_param
+        labels.append(label)
+        prev_row = row
+
+    df["changed_label"] = labels
+
+    # Highlight min-cost in each sweep
+    sweep_boundaries = [0] + sweep_lines + [len(df)]
+    colors = ['gray'] * len(df)
+    for i in range(len(sweep_boundaries) - 1):
+        start = sweep_boundaries[i]
+        end = sweep_boundaries[i+1]
+        min_idx = df.iloc[start:end]["cost"].idxmin()
+        colors[min_idx] = 'green'
+
+    # Best overall row
+    best_row = df.loc[df["cost"].idxmin(), param_cols.tolist() + ["cost"]].copy()
+    for col in best_row.index:
+        val = best_row[col]
+        if isinstance(val, (int, float)) and float(val).is_integer():
+            best_row[col] = int(val)
+    best_df = pd.DataFrame([best_row]).reset_index(drop=True)
+
+    # Create layout with two vertical rows
+    fig = plt.figure(figsize=(max(14, len(df) * 0.25), 10))
+    gs = GridSpec(nrows=2, ncols=1, height_ratios=[1 - table_height, table_height])
+    ax_plot = fig.add_subplot(gs[0])
+    ax_table = fig.add_subplot(gs[1])
+
+    # Main plot
+    ax_plot.scatter(df["changed_label"], df["cost"], color=colors)
+    for x in sweep_lines:
+        ax_plot.axvline(x=x - 0.5, color='gray', linestyle='--', linewidth=1)
+
+    # simplify tick labels to just the value, not rotated
+    values = [lbl.split('=')[1] for lbl in df["changed_label"]]
+    ax_plot.set_xticks(range(len(df)))
+    ax_plot.set_xticklabels(values, rotation=0, fontsize=8)
+
+    # drop parameter names down by alternating offsets to avoid overlap
+    ymin, ymax = ax_plot.get_ylim()
+    base_y = ymin - 0.08 * (ymax - ymin)
+    alt_y  = ymin - 0.15 * (ymax - ymin)
+    for i, (start, end) in enumerate(zip(sweep_boundaries[:-1], sweep_boundaries[1:])):
+        param_name = df.loc[start, "changed_label"].split("=")[0]
+        center = (start + end - 1) / 2
+        y_pos = base_y if i % 2 == 0 else alt_y
+        ax_plot.text(center, y_pos, param_name, ha="center", va="top", fontsize=10)
+
+    # expand bottom margin so parameter names stay visible
+    fig.subplots_adjust(bottom=0.30)
+
+    ax_plot.set_ylabel("Cost, (ppm)")
+    ax_plot.set_title(f"Cost by Single Parameter Sweep: {name_str}")
+
+    # prepare the table
+    ax_table.axis("off")
+    ax_table.text(0.5, 0.65, "Best Parameters", ha="center", va="bottom", fontsize=12)
+
+    table = ax_table.table(
+        cellText=best_df.values,
+        colLabels=best_df.columns,
+        cellLoc='center',
+        loc='center'
+    )
+    table.scale(1.0, 1.8)
+
+    # turn off auto‐sizing globally
+    table.auto_set_font_size(False)
+
+    # let the header row still auto‐size
+    for (row, col), cell in table.get_celld().items():
+        if row == 0:
+            cell.set_fontsize(7)
+        else:
+            cell.set_fontsize(10)
+    fig.savefig(f"pipeline_outputs_directory/Files/Cost_{name_str}.png", dpi=300, bbox_inches='tight')
+
+
+
+
+# ----------------------------------------
+# create filenames
+# ----------------------------------------
+
+def make_step_filenames(input_files, output_dir, step_tag):
     """
-    Extract the white‐light curve (sum over all pixels)
+    Given a list of JWST‐style filenames, replace everything after the
+    last '_' (the “step” part) with your new step_tag, and stick them
+    into output_dir.
     """
-    # dm.data after RampFitStep -> CubeModel: shape (nints, dimy, dimx)
-    wl = dm.data.reshape(dm.data.shape[0], -1).sum(axis=1)
-    return wl
+    out = []
+    for f in input_files:
+        base = os.path.basename(f)
+        # chop off the last “_something.fits” bit
+        base_root = base[: base.rfind("_") ]
+        new_name = f"{base_root}_{step_tag}.fits"
+        out.append(os.path.join(output_dir, new_name))
+    return out
 
-def compute_spectral(dm):
+# now for stage1’s dark‐current outputs:
+filenames_int1 = make_step_filenames(input_files, outdir_s1, "darkcurrentstep")
+# for stage1’s linearity outputs:
+filenames_int2 = make_step_filenames(input_files, outdir_s1, "linearitystep")
+# stage‐1 → gainscalestep  (used when skipping later stage1 steps)
+filenames_int3 = make_step_filenames(input_files, outdir_s1, "gainscalestep")
+# for stage2’s badpixstep outputs you’d do:
+filenames_int4 = make_step_filenames(input_files, outdir_s1, "gainscalestep")
+
+
+
+
+# ----------------------------------------
+# cost (P2P-based)
+# ----------------------------------------
+
+def cost_function(st3, baseline_ints=None, wave_range=None, tol=0.001):
     """
-    Extract a toy spectral lightcurve: e.g. sum down columns
+    Compute a combined white-light + spectral metric.
+
+    Parameters
+    ----------
+    st3 : dict-like
+        Must contain 'Flux' → 2D array of shape (n_int, n_wave)
+        and 'Wave' → 1D array of length n_wave
+    baseline_ints : list of 1 or 2 ints
+        Which integrations define your baseline(s)
+    wave_range : None or [min,max] or (min,max)
+        If None: use all wavelengths.
+        If list/tuple: pick only wavelengths within ±tol of the ends.
+    tol : float
+        Maximum allowed distance when matching wave_range endpoints.
+
+    Returns
+    -------
+    cost : float
+        w1*ptp2_white + w2*ptp2_spec
+    ptp2_spec_wave : 1D np.ndarray
+        The per-wavelength ptp2 values.
     """
-    spec = dm.data.reshape(dm.data.shape[0], dm.data.shape[1], -1)
-    return spec.mean(axis=2)  # shape (nints, dimy)
 
-def reduced_chi2(residuals, sigma=1.0):
+    # unpack & weights
+    w1, w2 = 0.0, 1.0
+    flux = np.asarray(st3['Flux'], float)
+    wave = np.asarray(st3['Wave'], float)
+
+    # --- white-light term ---
+    white      = np.nansum(flux, axis=1)
+    white      = white[~np.isnan(white)]
+    norm_white = white / np.median(white)
+    d2_white   = 0.5*(norm_white[:-2] + norm_white[2:]) - norm_white[1:-1]
+    ptp2_white = np.nanmedian(np.abs(d2_white))
+
+    # --- spectral term (per-wavelength ptp2) ---
+    wave_meds     = np.nanmedian(flux, axis=0, keepdims=True)
+    norm_spec     = flux / wave_meds
+    d2_spec       = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
+
+    # select baseline integrations
+    if baseline_ints == None:
+        ptp2_spec_wave = np.nanmedian(np.abs(d2_spec), axis=0)
+    
+    elif len(baseline_ints) == 1:
+        N = int(baseline_ints[0])
+        ptp2_spec_wave = np.nanmedian(np.abs(d2_spec[:N]), axis=0)
+
+    elif len(baseline_ints) == 2:
+        Nlow, Nhigh = map(int, baseline_ints)
+        low_term  = np.nanmedian(np.abs(d2_spec[:Nlow]), axis=0)
+        high_term = np.nanmedian(np.abs(d2_spec[Nhigh:]), axis=0)
+        ptp2_spec_wave = 0.5 * (low_term + high_term)
+
+    else:
+        raise ValueError(f"baseline_ints must be length 1 or 2, got {len(baseline_ints)}")
+
+        # handle wave_range
+    if wave_range is None:
+        ptp2_spec = np.nanmedian(ptp2_spec_wave)
+
+    elif isinstance(wave_range, (list, tuple)) and len(wave_range) == 2:
+        lo, hi = wave_range
+
+        # build a mask of finite wavelengths
+        finite = np.isfinite(wave)
+        if not finite.any():
+            raise ValueError("All entries in wave are NaN!")
+
+        # compute distances, forcing NaN entries to +inf
+        dist_lo = np.abs(wave - lo)
+        dist_lo[~finite] = np.inf
+        dist_hi = np.abs(wave - hi)
+        dist_hi[~finite] = np.inf
+
+        idx_lo = int(np.argmin(dist_lo))
+        idx_hi = int(np.argmin(dist_hi))
+
+        # tolerance check
+        if dist_lo[idx_lo] > tol or dist_hi[idx_hi] > tol:
+            raise ValueError(f"wave_range {wave_range} not found within ±{tol}")
+
+        # ensure idx_lo ≤ idx_hi
+        i0, i1 = sorted((idx_lo, idx_hi))
+
+        # slice and take the median of the subrange
+        sub = ptp2_spec_wave[i0:i1+1]
+        if np.all(np.isnan(sub)):
+            raise ValueError(f"No valid ptp2_spec values in wave range {wave_range}")
+        ptp2_spec = np.nanmedian(sub)
+
+    else:
+        raise ValueError("wave_range must be None or a length-2 list/tuple")
+
+    # final cost
+    cost = w1 * ptp2_white + w2 * ptp2_spec
+
+    return cost, ptp2_spec_wave
+
+
+
+# ----------------------------------------
+# diagnostic_plot
+# ----------------------------------------
+
+def diagnostic_plot(st3, name_str, baseline_ints=baseline_ints, outdir=outdir_f):
     """
-    Compute reduced chi-squared assuming errors = sigma
+    Generate three diagnostic plots from the stage-3 flux array:
+      1. Normalized white-light curve
+      2. Normalized white-light curve with error bars
+      3. Normalized flux image (integrations vs spectral pixels)
+
+    Parameters
+    ----------
+    st3 : dict-like
+        Must contain a key 'Flux' giving a 2D array (n_int x n_pix).
+    name_str : str
+        Identifier used in output filenames.
+
+    Output
+    ------
+    pipeline_outputs_directory/Files/
+        norm_white_{name_str}.png
+        flux_img_{name_str}.png
     """
-    Chi_2 = np.sum((residuals / sigma)**2)
-    nu = residuals.size - 1  
-    return Chi_2 / nu
+    # ensure output dir exists
+    os.makedirs(outdir, exist_ok=True)
 
-"""
-def cost_function(dm, w1, w2, w3):
-    # 1) White-light stddev after detrending
-    wl = compute_white_light(dm)
-    std_wl = np.std(detrend(wl))
+    # grab the flux array
+    flux = np.asarray(st3['Flux'], dtype=float)
+    wave = np.asarray(st3['Wave'], dtype=float)
 
-    # 2) Spectral stddev after detrending, averaged over all rows
-    spec = compute_spectral(dm)
-    std_spec = np.mean([np.std(detrend(spec[:, i])) for i in range(spec.shape[1])])
+    # ---  white light curve ---
+    white = np.nansum(flux, axis=1)
+    white = white[~np.isnan(white)]
+    norm_white = white / np.median(white[:100])
 
-    # 3) Reduced chi-squared around a flat (mean) model
-    Chi2 = reduced_chi2(wl - np.mean(wl))
+    if len(baseline_ints) == 1:
+        N = int(baseline_ints[0])
+        norm_white = white / np.median(white[:N])
 
-    return w1 * std_wl + w2 * std_spec + w3 * Chi2
+    elif len(baseline_ints) == 2:
+        Nlow, Nhigh = map(int, baseline_ints)
+        low_term  = np.median(white[:Nlow])
+        high_term = np.median(white[Nhigh:])
+        median_base = 0.5 * (low_term + high_term)
+        norm_white = white / median_base
 
-"""
+    else:
+        raise ValueError(f"baseline_ints must be length 1 or 2, got {len(baseline_ints)}")
     
 
+    # 1) simple normalized white curve
+    plt.figure()
+    plt.plot(norm_white, marker='.')
+    plt.xlabel("Integration Number")
+    plt.ylabel("Normalized White Flux")
+    plt.title("Normalized White-light Curve")
+    plt.grid(True)
+    plt.savefig(f"{outdir}/norm_white_{name_str}.png", dpi=300)
+    plt.close()
 
-def cost_function(dm, w1=1.0, w2=1.0, w3=1.0):
-    # Extract white-light & spectral curves
-    wl   = compute_white_light(dm)             # shape (nints,)
-    spec = compute_spectral(dm)                # shape (nints, nrows)
- 
-    #  fractional scatter of white-light curve
-    frac_wl = mad_std(wl) / np.abs(np.median(wl))
+    # 2) normalized flux image (integration vs. wavelength)
+    plt.figure()
+    img = flux / np.nanmedian(flux, axis=0, keepdims=True)
+    n_int, n_pix = flux.shape
+    
+    # ignore NaNs when finding wavelength bounds
+    finite = np.isfinite(wave)
+    if not finite.any():
+        raise ValueError("No finite wavelengths found!")
+    wmin, wmax = wave[finite].min(), wave[finite].max()
+    
+    # transpose img so rows→wavelength, cols→integration
+    plt.imshow(
+        img.T,              # swap axes
+        vmin=0.98, vmax=1.02,
+        aspect='auto',
+        origin='lower',
+        extent=[0, n_int-1, wmin, wmax]
+    )
+    plt.xlabel("Integration Number")
+    plt.ylabel("Wavelength (µm)")
+    plt.title("Normalized Flux Image")
+    plt.colorbar(label="Relative Flux")
+    plt.savefig(f"{outdir}/flux_img_{name_str}.png", dpi=300)
+    plt.close()
 
-    # fractional scatter averaged over spectral rows
-    frac_spec_rows = [
-        mad_std(spec[:, i]) / np.abs(np.median(spec[:, i]))
-        for i in range(spec.shape[1])
-    ]
-    frac_spec = np.mean(frac_spec_rows)
-
-    # combine with weights 
-    return w1 * frac_wl + w2 * frac_spec
 
 
 # ----------------------------------------
-# 2) Main & coordinate‐descent
+# covariance
 # ----------------------------------------
+
+def compute_cov_metric(random_seed=42):
+    """
+    Compute covariance metric for the spectrum file located in pipeline_outputs_directory/Stage3.
+
+    Parameters:
+    random_seed (int or None): Seed for reproducible noise generation (default: 42).
+
+    Returns:
+    float: Covariance metric (percent excess correlation).
+    """
+    # Define Stage3 output directory
+    stage3_dir = os.path.join("pipeline_outputs_directory", "Stage3")
+    # Find the FITS file ending with _box_spectra_fullres.fits
+    pattern = os.path.join(stage3_dir, "*_box_spectra_fullres.fits")
+    matches = glob.glob(pattern)
+    if not matches:
+        raise FileNotFoundError(f"No spectrum file matching *_box_spectra_fullres.fits found in {stage3_dir}")
+    # Use the first match
+    final_output_spectrum_file = matches[0]
+
+    # Load & normalize
+    spec = fits.getdata(final_output_spectrum_file, 3)
+    spec /= np.nanmedian(spec[:100], axis=0)
+    cov_matrix2 = np.corrcoef(spec[:100].T)
+
+    # Prepare reproducible RNG
+    rng = np.random.default_rng(random_seed)
+
+    # Simulate noise with same per-column deviation
+    dev = np.nanstd(spec[:100], axis=0)
+    ss = np.empty_like(spec)
+    for i in range(len(dev)):
+        ss[:, i] = rng.normal(0, dev[i], spec.shape[0])
+    cov_matrix = np.corrcoef(ss[:100].T)
+
+    # Compute percent excess correlation
+    cov_metric = (np.nanmean(np.abs(cov_matrix2)) / np.nanmean(np.abs(cov_matrix))) * 100 - 100
+    return cov_metric
+
+def compute_cov_metric_avg(n_seeds=10, start_seed=0):
+    metrics = []
+    for i in range(n_seeds):
+        seed = start_seed + i
+        cov = compute_cov_metric(random_seed=seed)
+        metrics.append(cov)
+    avg_cov = np.mean(metrics)
+    return avg_cov, metrics
+
+# ----------------------------------------
+# photon noise
+# ----------------------------------------
+
+
+
+
+
+
+# ----------------------------------------
+# main
+# ----------------------------------------
+
 def main():
-    import argparse
-    import time
-    import numpy as np
-    from itertools import product
-    from jwst import datamodels
-    from exotedrf.utils import parse_config
-    from exotedrf.stage1 import run_stage1
+    parser = argparse.ArgumentParser(
+        description="Coordinate‐descent optimizer for exoTEDRF Stages 1–3"
+    )
+    parser.add_argument(
+        "--config", default="run_optimize.yaml",
+        help="Path to your DMS config YAML"
+    )
+    parser.add_argument(
+        "--instrument", required=True,
+        choices=["NIRISS", "NIRSPEC", "MIRI"],
+        help="Which instrument to optimize"
+    )
+    args = parser.parse_args()
 
-
-
-    # 1) parse args & config
-    p = argparse.ArgumentParser()
-    p.add_argument("--config", default="run_WASP39b.yaml")
-    p.add_argument("--w1", type=float, default=1.0)
-    p.add_argument("--w2", type=float, default=1.0)
-    p.add_argument("--w3", type=float, default=1.0)
-    args = p.parse_args()
+    # Load YAML config
     cfg = parse_config(args.config)
 
-    # ─── START GLOBAL TIMER ─────────────────────────────────────────────
+    # Set CRDS environment variables using values from YAML
+    os.environ.setdefault('CRDS_PATH', cfg.get('crds_cache_path', './crds_cache'))
+    os.environ.setdefault('CRDS_SERVER_URL', 'https://jwst-crds.stsci.edu')
+    os.environ.setdefault('CRDS_CONTEXT', cfg.get('crds_context', 'jwst_1322.pmap'))
+
+
+    baseline_ints = cfg.get('baseline_ints', [50, -50])
+    name_str = cfg.get('name_tag', 'default_run')
+
     t0_total = time.perf_counter()
-    # ────────────────────────────────────────────────────────────────────
+    cfg = parse_config(args.config)
 
-    # 2) load K‐int slice K= K =
-    seg1 = cfg['input_dir'] + "/jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
-    dm_full = datamodels.open(seg1)
-    K = min(60, dm_full.data.shape[0])
-    dm_slice = dm_full.copy()
-    dm_slice.data = dm_full.data[:K]
-    
-    dm_slice.meta.exposure.integration_start = 1
-    dm_slice.meta.exposure.integration_end   = K
-    
-    dm_slice.meta.exposure.nints = K
-    dm_full.close()
+    # get input data
+    input_files = unpack_input_dir(
+        cfg["input_dir"],
+        mode=cfg["observing_mode"],
+        filetag=cfg["input_filetag"],
+        filter_detector=cfg["filter_detector"],
+    ) 
 
-    # 3) parameter ranges & order SWEEP OVER THESE PARAMETERS
-    param_ranges = {
-        'time_window':              [3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,71,131],
-        'box_size':                 [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,70,150,200],
-        'thresh':                   [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,70,150,200],
-        'rejection_threshold':      [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,70,150,200],
-        'time_rejection_threshold': [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,70,150,200],
-        'nirspec_mask_width':       [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,70,150,200],
-    }
-
-    
-    # fast Check Params
-    
-    param_ranges = {
-        'time_window':              [5,7],
-        'box_size':                 [10,20],
-        'thresh':                   [10,20],
-        'rejection_threshold':      [10,20], 
-        'time_rejection_threshold': [10,20],
-        'nirspec_mask_width':       [8,20],
-    }
+    # Generate filenames for intermediate outputs
+    filenames_int1 = make_step_filenames(input_files, outdir_s1, "darkcurrentstep")
+    filenames_int2 = make_step_filenames(input_files, outdir_s1, "linearitystep")
+    filenames_int3 = make_step_filenames(input_files, outdir_s1, "gainscalestep")
+    filenames_int4 = make_step_filenames(input_files, outdir_s1, "gainscalestep")
 
 
-    
+    if not input_files:
+        fancyprint(f"[WARN] No files in {cfg['input_dir']}, globbing *.fits")
+        input_files = sorted(glob.glob(os.path.join(cfg["input_dir"], "*.fits")))
+    if not input_files:
+        raise RuntimeError(f"No FITS found in {cfg['input_dir']}")
+    fancyprint(f"Using {len(input_files)} segment(s) from {cfg['input_dir']}")
 
-    param_order = [
-        'time_window',
-        'box_size',
-        'thresh',
-        'rejection_threshold',
-        'time_rejection_threshold',
-        'nirspec_mask_width',
+
+    # --- parameter ranges ---
+    param_ranges = {k: v for k, v in cfg.items() if isinstance(v, list)}
+    fixed_params = {k: v for k, v in cfg.items() if not isinstance(v, list)}
+    param_order = list(param_ranges.keys())
+    total_steps   = sum(len(v) for v in param_ranges.values())
+
+    stage1_keys   = [
+        "rejection_threshold", "time_rejection_threshold","time_window",
+        "nirspec_mask_width",   "soss_inner_mask_width",
+        "soss_outer_mask_width","miri_drop_groups",
     ]
+    stage2_keys   = [
+        "space_thresh", "time_thresh",
+        "miri_trace_width", "miri_background_width",
+    ]
+    stage3_keys   = ["extract_width"]
+
+    # initialize current to medians
+    current = {k: int(np.median(v)) for k,v in param_ranges.items()}
+    current.update(fixed_params)
 
 
+    # open global log
+    logf = open(f"pipeline_outputs_directory/Files/Cost_{name_str}.txt","w")
+    logc = open(f"pipeline_outputs_directory/Files/cov_{name_str}.txt","w")
+    logs  = open(f"pipeline_outputs_directory/Files/Scatter_{name_str}.txt", "w")
+    logf.write("\t".join(param_order)+"\tduration_s\tcost\n")
 
-
-    # counter for status update
     count = 1
-    total_steps = sum(len(v) for v in param_ranges.values())
-
-    # 4) initialize current best at medians
-    # this just makes sure to start with a median for the rest parameters not an outliner
-    current = {p: int(np.median(param_ranges[p])) for p in param_order}
-    current.update(w1=args.w1, w2=args.w2, w3=args.w3)
-
-    skip_steps = []  
- 
-    def evaluate_one(params):
-        print("Running with params:", params)
-
-        # ─── Build the kwargs that run_stage1 knows ─────────────────────────────
-        run_kwargs = {
-            # Up-the-ramp sigma threshold
-            'rejection_threshold':      params['rejection_threshold'],
-            # Time-domain sigma threshold
-            'time_rejection_threshold': params['time_rejection_threshold'],
-            # NIRSpec mask width for the OneOverFStep
-            'nirspec_mask_width':       params['nirspec_mask_width'],
-            # Everything else (time_window) goes under the JumpStep sub-dict:
-            'JumpStep': {
-                'time_window': params['time_window']
-            }
-        }
-
-        # ─── Time it & run Stage 1 ─────────────────────────────────────────────
-        t0 = time.perf_counter()
-        baseline_ints = list(range(dm_slice.data.shape[0]))  # [0…K-1]
-
-        results = run_stage1(
-            [dm_slice],
-            mode=cfg['observing_mode'],
-            baseline_ints=baseline_ints,
-            save_results=False,
-            skip_steps=skip_steps,
-            **run_kwargs
-        )
-        print("\033[1m\033[94mDEBUG [trial] finished run_stage1, results shape:\033[0m"  , np.array(results).shape)
-        print("\033[1m\033[94mDEBUG [trial] finished run_stage1, results:\033[0m"  , results)
-        dt = time.perf_counter() - t0
-
-        # ─── Score it ─────────────────────────────────────────────────────────
-        dm_out = results[0]
-        J = cost_function(dm_out, params['w1'], params['w2'], params['w3'])
-        return J, dt
-
-
-    # 5) open log file (TSV) and write header
-    logfile = open("Cost_function.txt", "w")
-    logfile.write(
-        "time_window\t"
-        "box_size\t"
-        "thresh\t"
-        "rejection_threshold\t"
-        "time_rejection_threshold\t"
-        "nirspec_mask_width\t"
-        "duration_s\t"
-        "J\n"
-    )
-
-    # 6) coordinate‐descent
+    
+    # coordinate descent
     for key in param_order:
-        print(f"\n→ Optimizing {key} (others fixed = "
-              f"{ {k:current[k] for k in current if k!=key} })")
-        best_J = None
+        fancyprint(
+            f"→ Optimizing {key} "
+            f"(fixed-other={{{', '.join(f'{k}:{current[k]}' for k in current if k!=key)}}})"
+        )
+
         best_val = current[key]
-        best_dt = None
+        best_cost = None
 
         for trial in param_ranges[key]:
-            trial_params = current.copy()
-            trial_params[key] = trial
-            J,  dt = evaluate_one(trial_params)
+            fancyprint(f"Step {count}/{total_steps}: {key}={trial}")
+            trial_params = {**current, key: trial}
 
-            print(f"\n\n\n###########################################################\n Step: {count}/{total_steps} completed\n###########################################################\n\n\n")
-            count +=1 
-            # log this trial
-            logfile.write(
-                f"{trial_params['time_window']}\t"
-                f"{trial_params['box_size']}\t"
-                f"{trial_params['thresh']}\t"
-                f"{trial_params['rejection_threshold']}\t"
-                f"{trial_params['time_rejection_threshold']}\t"
-                f"{trial_params['nirspec_mask_width']}\t"
-                f"{dt:.1f}\t"
-                f"{J:.6f}\n"
+            
+
+            t0 = time.perf_counter()
+
+            print(
+                "\n############################################",
+                f"\n Step: {count}/{total_steps} starting {key}={trial}",
+                "\n############################################\n",
+                flush=True
             )
 
-            print(f"   {key}={trial} → J={J:.6f} ({dt:.1f}s)")
+            # split out args
+            s1_args = {k:trial_params[k] for k in stage1_keys  if k in trial_params}
+            s2_args = {k:trial_params[k] for k in stage2_keys  if k in trial_params}
+            s3_args = {k:trial_params[k] for k in stage3_keys  if k in trial_params}
 
-            if best_J is None or J < best_J:
-                best_J, best_val, best_dt = J, trial, dt
+            # inherit for JumpStep 
+            if "time_window" in trial_params:
+                s1_args["JumpStep"] = {"time_window":trial_params["time_window"]}
+
+            # BadPixStep overrides
+            badpix = {}
+            if "box_size"   in trial_params: badpix["box_size"]   = trial_params["box_size"]
+            if "window_size" in trial_params: badpix["window_size"] = trial_params["window_size"]
+            if badpix:
+                s2_args["BadPixStep"] = badpix
+
+            if best_cost == None:
+                # Stage 1
+                st1 = run_stage1(
+                    input_files,
+                    mode=cfg["observing_mode"],
+                    baseline_ints=baseline_ints,
+                    flag_up_ramp=False,
+                    save_results=True,
+                    force_redo=True,
+                    skip_steps=[],
+                    **s1_args
+                )
+                
+                # Stage 2
+                st2, centroids = run_stage2(
+                    st1,
+                    mode=cfg["observing_mode"],
+                    baseline_ints=baseline_ints,
+                    save_results=True,
+                    force_redo=True,
+                    skip_steps=[],
+                    **s2_args,
+                    **cfg.get("stage2_kwargs",{})
+                )
+                if isinstance(centroids,np.ndarray):
+                    centroids = pd.DataFrame(centroids.T,columns=["xpos","ypos"])
+
+                # Stage 3
+                st3 = run_stage3(
+                    st2,
+                    centroids=centroids,
+                    save_results=True,
+                    force_redo=True,
+                    skip_steps=[],
+                    **s3_args,
+                    **cfg.get("stage3_kwargs",{})
+                )
+            
+            else:
+                if key in ('nirspec_mask_width'):
+
+                    st1 = run_stage1(
+                        filenames_int1,
+                        mode=cfg["observing_mode"],
+                        baseline_ints=baseline_ints,
+                        flag_up_ramp=False,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=['DQInitStep','SaturationStep','DarkCurrentStep'],
+                        **s1_args
+                    )
+
+                    st2, centroids = run_stage2(
+                        st1,
+                        mode=cfg["observing_mode"],
+                        baseline_ints=baseline_ints,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=[],
+                        **s2_args,
+                        **cfg.get("stage2_kwargs",{})
+                    )
+                    if isinstance(centroids,np.ndarray):
+                        centroids = pd.DataFrame(centroids.T,columns=["xpos","ypos"])
+                    
+                    st3 = run_stage3(
+                        st2,
+                        centroids=centroids,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=[],
+                        **s3_args,
+                        **cfg.get("stage3_kwargs",{})
+                    )                    
+
+                    
+                elif key in ('time_rejection_threshold', 'time_window'):
+                                        
+                    st1 = run_stage1(
+                        filenames_int2,
+                        mode=cfg["observing_mode"],
+                        baseline_ints=baseline_ints,
+                        flag_up_ramp=False,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=['DQInitStep','SaturationStep','DarkCurrentStep','OneOverFStep','LinearityStep'],
+                        **s1_args
+                    )
+
+                    st2, centroids = run_stage2(
+                        st1,
+                        mode=cfg["observing_mode"],
+                        baseline_ints=baseline_ints,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=[],
+                        **s2_args,
+                        **cfg.get("stage2_kwargs",{})
+                    )
+                    if isinstance(centroids,np.ndarray):
+                        centroids = pd.DataFrame(centroids.T,columns=["xpos","ypos"])
+                    
+                    st3 = run_stage3(
+                        st2,
+                        centroids=centroids,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=[],
+                        **s3_args,
+                        **cfg.get("stage3_kwargs",{})
+                    )                             
+                elif key in ('space_thresh', 'time_thresh', 'box_size', 'window_size'):
+
+                    st2, centroids = run_stage2(
+                        filenames_int3,
+                        mode=cfg["observing_mode"],
+                        baseline_ints=baseline_ints,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=[],
+                        **s2_args,
+                        **cfg.get("stage2_kwargs",{})
+                    )
+                    if isinstance(centroids,np.ndarray):
+                        centroids = pd.DataFrame(centroids.T,columns=["xpos","ypos"])
+                    
+                    st3 = run_stage3(
+                        st2,
+                        centroids=centroids,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=[],
+                        **s3_args,
+                        **cfg.get("stage3_kwargs",{})
+                    )
+                elif key in ('extract_width'):
+      
+                    st2, centroids = run_stage2(
+                        filenames_int4,
+                        mode=cfg["observing_mode"],
+                        baseline_ints=baseline_ints,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=[],
+                        **s2_args,
+                        **cfg.get("stage2_kwargs",{})
+                    )
+                    if isinstance(centroids,np.ndarray):
+                        centroids = pd.DataFrame(centroids.T,columns=["xpos","ypos"])
+                    
+                    st3 = run_stage3(
+                        st2,
+                        centroids=centroids,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=[], 
+                        **s3_args,
+                        **cfg.get("stage3_kwargs",{})
+                    )
+
+            
+
+            cost, scatter = cost_function(st3, baseline_ints=baseline_ints, wave_range=(3.2,3.4))
+            
+            covariance, all_covs = compute_cov_metric_avg(n_seeds=10, start_seed=0)
+
+
+            dt = time.perf_counter() - t0
+            fancyprint(f"→ cost = {cost:.12f} in {dt:.1f}s")
+
+            # log it
+            logf.write(
+                "\t".join(str(trial_params[k]) for k in param_order)
+                + f"\t{dt:.1f}\t{cost:.12f}\n"
+            )
+
+            line = " ".join(f"{x:.10g}" for x in scatter)  
+            logs.write(line + "\n")
+            logc.write(f"{covariance:.10f}\n")
+
+            if best_cost is None or cost < best_cost:
+                best_cost, best_val = cost, trial
+                diagnostic_plot(st3, name_str, baseline_ints=baseline_ints, outdir=outdir_f)
+
+            print(
+                "\n############################################",
+                f"\n Step: {count}/{total_steps} completed (dt={dt:.1f}s)",
+                "\n############################################\n",
+                flush=True
+            )         
+
+            count += 1
 
         current[key] = best_val
-        print(f"✔→ Best {key} = {best_val} (J={best_J:.6f}, dt={best_dt:.1f}s)")
+        fancyprint(f"Best {key} = {best_val} (cost={best_cost:.12f})")
 
-    logfile.close()
+    # total runtime
+    t1 = time.perf_counter() - t0_total
+    h, m = divmod(int(t1),3600)
+    m, s = divmod(m,60)
+    fancyprint(f"TOTAL runtime: {h}h {m:02d}min {s:04.1f}s")
+    logf.close()
+    logs.close()
+    logc.close()
 
-    # 7) final report
-    print("\n=== FINAL OPTIMUM ===")
-    print("params =", {k: current[k] for k in param_order})
-    print("J =", best_J)
-    print("last dt =", best_dt)
-
-    # ─── STOP GLOBAL TIMER & PRINT TOTAL ────────────────────────────────
-    t1_total = time.perf_counter()
-    total = t1_total - t0_total
-    h = int(total) // 3600
-    m = (int(total) % 3600) // 60
-    s = total % 60
-    print(f"TOTAL optimization runtime: {h}h {m:02d}min {s:04.1f}s")
-    # ────────────────────────────────────────────────────────────────────
-
-    # 8) write final optimum to logfile
-    logfile = open("Cost_function.txt", "a")  # reopen in append mode
-    logfile.write("\n# Final optimized parameters:\n")
-    for k in param_order:
-        logfile.write(f"# {k} = {current[k]}\n")
-    logfile.write(f"# Final cost J = {best_J:.6f}\n")
-    logfile.close()
-
-
-
+    fancyprint("=== FINAL OPTIMUM ===")
+    fancyprint(current)
+    plot_cost(name_str)
 
 if __name__ == "__main__":
     main()

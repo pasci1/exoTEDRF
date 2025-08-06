@@ -13,42 +13,619 @@ import numpy as np
 import pandas as pd
 from jwst import datamodels
 import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
+from astropy.io import fits
 
+from exotedrf import utils
 from exotedrf.utils import parse_config, unpack_input_dir, fancyprint
 from exotedrf.stage1 import run_stage1
 from exotedrf.stage2 import run_stage2
 from exotedrf.stage3 import run_stage3
 
+#########################################
+
+baseline_ints = [150,-100 ]
+
+
+name_str = 'P2P_spec_whole_V3'
+uncal_indir = 'Optimize_WASP39b/DMS_uncal/'  # Where our uncalibrated files are found.
+outdir = 'pipeline_outputs_directory'
+outdir_f = 'pipeline_outputs_directory/Files'
+outdir_s1 = 'pipeline_outputs_directory/Stage1/'
+outdir_s2 = 'pipeline_outputs_directory/Stage2/'
+outdir_s3 = 'pipeline_outputs_directory/Stage3/'
+outdir_s4 = 'pipeline_outputs_directory/Stage4/'
+
+utils.verify_path('pipeline_outputs_directory')
+utils.verify_path('pipeline_outputs_directory/Files')
+utils.verify_path('pipeline_outputs_directory/Stage1')
+utils.verify_path('pipeline_outputs_directory/Stage2')
+utils.verify_path('pipeline_outputs_directory/Stage3')
+utils.verify_path('pipeline_outputs_directory/Stage4')
+
+
+filenames = [uncal_indir+'jw01366003001_04101_00001-seg001_nrs1_uncal.fits',
+            uncal_indir+'jw01366003001_04101_00001-seg002_nrs1_uncal.fits',
+            uncal_indir+'jw01366003001_04101_00001-seg003_nrs1_uncal.fits']
+
+
 # ----------------------------------------
-# cost (MAD-based)
+# plot cost
 # ----------------------------------------
 
-def cost_function(st3):
+def plot_cost(name_str, table_height=0.4):
+    # Load data
+    df = pd.read_csv(f"pipeline_outputs_directory/Files/Cost_{name_str}.txt", delimiter="\t")
+
+    # Drop rows with non-numeric cost values
+    df = df[pd.to_numeric(df["cost"], errors="coerce").notna()].reset_index(drop=True)
+
+    # Get parameter columns (excluding duration_s and cost columns)
+    param_cols = df.columns[:-2]
+
+    # Track changed parameter and labels
+    labels = []
+    sweep_lines = []
+    prev_row = None
+    last_changed_param = None
+
+    for idx, row in df.iterrows():
+        if prev_row is None:
+            value = int(row["nirspec_mask_width"]) if float(row["nirspec_mask_width"]).is_integer() else row["nirspec_mask_width"]
+            label = f"nirspec_mask_width={value}"
+            changed_param = "nirspec_mask_width"
+        else:
+            diffs = [col for col in param_cols if row[col] != prev_row[col]]
+            if len(diffs) == 1:
+                changed_param = diffs[0]
+            elif len(diffs) >= 2:
+                changed_param = diffs[1]
+            else:
+                changed_param = last_changed_param
+
+            if changed_param != last_changed_param:
+                sweep_lines.append(idx)
+
+            value = row[changed_param]
+            if isinstance(value, (int, float)) and float(value).is_integer():
+                value = int(value)
+            label = f"{changed_param}={value}"
+
+        last_changed_param = changed_param
+        labels.append(label)
+        prev_row = row
+
+    df["changed_label"] = labels
+
+    # Highlight min-cost in each sweep
+    sweep_boundaries = [0] + sweep_lines + [len(df)]
+    colors = ['gray'] * len(df)
+    for i in range(len(sweep_boundaries) - 1):
+        start = sweep_boundaries[i]
+        end = sweep_boundaries[i+1]
+        min_idx = df.iloc[start:end]["cost"].idxmin()
+        colors[min_idx] = 'green'
+
+    # Best overall row
+    best_row = df.loc[df["cost"].idxmin(), param_cols.tolist() + ["cost"]].copy()
+    for col in best_row.index:
+        val = best_row[col]
+        if isinstance(val, (int, float)) and float(val).is_integer():
+            best_row[col] = int(val)
+    best_df = pd.DataFrame([best_row]).reset_index(drop=True)
+
+    # Create layout with two vertical rows
+    fig = plt.figure(figsize=(max(14, len(df) * 0.25), 10))
+    gs = GridSpec(nrows=2, ncols=1, height_ratios=[1 - table_height, table_height])
+    ax_plot = fig.add_subplot(gs[0])
+    ax_table = fig.add_subplot(gs[1])
+
+    # Main plot
+    ax_plot.scatter(df["changed_label"], df["cost"], color=colors)
+    for x in sweep_lines:
+        ax_plot.axvline(x=x - 0.5, color='gray', linestyle='--', linewidth=1)
+
+    # simplify tick labels to just the value, not rotated
+    values = [lbl.split('=')[1] for lbl in df["changed_label"]]
+    ax_plot.set_xticks(range(len(df)))
+    ax_plot.set_xticklabels(values, rotation=0, fontsize=8)
+
+    # drop parameter names down by alternating offsets to avoid overlap
+    ymin, ymax = ax_plot.get_ylim()
+    base_y = ymin - 0.08 * (ymax - ymin)
+    alt_y  = ymin - 0.15 * (ymax - ymin)
+    for i, (start, end) in enumerate(zip(sweep_boundaries[:-1], sweep_boundaries[1:])):
+        param_name = df.loc[start, "changed_label"].split("=")[0]
+        center = (start + end - 1) / 2
+        y_pos = base_y if i % 2 == 0 else alt_y
+        ax_plot.text(center, y_pos, param_name, ha="center", va="top", fontsize=10)
+
+    # expand bottom margin so parameter names stay visible
+    fig.subplots_adjust(bottom=0.30)
+
+    ax_plot.set_ylabel("Cost, (ppm)")
+    ax_plot.set_title(f"Cost by Single Parameter Sweep: {name_str}")
+
+    # prepare the table
+    ax_table.axis("off")
+    ax_table.text(0.5, 0.65, "Best Parameters", ha="center", va="bottom", fontsize=12)
+
+    table = ax_table.table(
+        cellText=best_df.values,
+        colLabels=best_df.columns,
+        cellLoc='center',
+        loc='center'
+    )
+    table.scale(1.0, 1.8)
+
+    # turn off auto‐sizing globally
+    table.auto_set_font_size(False)
+
+    # let the header row still auto‐size
+    for (row, col), cell in table.get_celld().items():
+        if row == 0:
+            cell.set_fontsize(7)
+        else:
+            cell.set_fontsize(10)
+    fig.savefig(f"pipeline_outputs_directory/Files/Cost_{name_str}.png", dpi=300, bbox_inches='tight')
+
+
+
+
+# ----------------------------------------
+# create filenames
+# ----------------------------------------
+
+def make_step_filenames(input_files, output_dir, step_tag):
     """
-    Combined cost = w1 * norm_MAD_white + w2 * norm_MAD_spec
-      - norm_MAD_white = MAD_white / |median_white|
-      - norm_MAD_spec  = MAD_spec  / |median_spectral|
+    Given a list of JWST‐style filenames, replace everything after the
+    last '_' (the “step” part) with your new step_tag, and stick them
+    into output_dir.
     """
-    w1 = 0.0
-    w2 = 1.0 
-    flux = np.asarray(st3['Flux'], dtype=float)  # shape (n_int, n_wave)
+    out = []
+    for f in input_files:
+        base = os.path.basename(f)
+        # chop off the last “_something.fits” bit
+        base_root = base[: base.rfind("_") ]
+        new_name = f"{base_root}_{step_tag}.fits"
+        out.append(os.path.join(output_dir, new_name))
+    return out
 
-    # 1) White-light MAD
-    white = np.nansum(flux, axis=1)               # shape (n_int,)
-    white = white[~np.isnan(white)]               # drop NaNs
-    med_white = np.median(white)
-    norm_white = white / med_white
-    norm_med_white = np.median(norm_white)
-    norm_mad_white = np.median(np.abs(norm_white - norm_med_white))
+# now for stage1’s dark‐current outputs:
+filenames_int1 = make_step_filenames(filenames, outdir_s1, "darkcurrentstep")
+# for stage1’s linearity outputs:
+filenames_int2 = make_step_filenames(filenames, outdir_s1, "linearitystep")
+# stage‐1 → gainscalestep  (used when skipping later stage1 steps)
+filenames_int3 = make_step_filenames(filenames, outdir_s1, "gainscalestep")
+# for stage2’s badpixstep outputs you’d do:
+filenames_int4 = make_step_filenames(filenames, outdir_s1, "gainscalestep")
 
-    # 2) Spectral MAD (per-integration)
-    spec = flux
-    norm_spec = spec / np.nanmedian(spec, axis=1, keepdims=True)
-    mad_spec_per_int = np.nanmedian(np.abs(norm_spec - 1.0), axis=1)
-    norm_mad_spec = np.nanmedian(mad_spec_per_int)
 
-    # Combined cost
-    return w1 * norm_mad_white + w2 * norm_mad_spec
+
+
+# ----------------------------------------
+# cost (P2P-based)
+# ----------------------------------------
+
+def cost_function(st3, baseline_ints=None, wave_range=None, tol=0.001):
+    """
+    Compute a combined white-light + spectral metric.
+
+    Parameters
+    ----------
+    st3 : dict-like
+        Must contain 'Flux' → 2D array of shape (n_int, n_wave)
+        and 'Wave' → 1D array of length n_wave
+    baseline_ints : list of 1 or 2 ints
+        Which integrations define your baseline(s)
+    wave_range : None or [min,max] or (min,max)
+        If None: use all wavelengths.
+        If list/tuple: pick only wavelengths within ±tol of the ends.
+    tol : float
+        Maximum allowed distance when matching wave_range endpoints.
+
+    Returns
+    -------
+    cost : float
+        w1*ptp2_white + w2*ptp2_spec
+    ptp2_spec_wave : 1D np.ndarray
+        The per-wavelength ptp2 values.
+    """
+
+    # unpack & weights
+    w1, w2 = 0.0, 1.0
+    flux = np.asarray(st3['Flux'], float)
+    wave = np.asarray(st3['Wave'], float)
+
+    # --- white-light term ---
+    white      = np.nansum(flux, axis=1)
+    white      = white[~np.isnan(white)]
+    norm_white = white / np.median(white)
+    d2_white   = 0.5*(norm_white[:-2] + norm_white[2:]) - norm_white[1:-1]
+    ptp2_white = np.nanmedian(np.abs(d2_white))
+
+    # --- spectral term (per-wavelength ptp2) ---
+    wave_meds     = np.nanmedian(flux, axis=0, keepdims=True)
+    norm_spec     = flux / wave_meds
+    d2_spec       = 0.5*(norm_spec[:-2] + norm_spec[2:]) - norm_spec[1:-1]
+
+    # select baseline integrations
+    if baseline_ints == None:
+        ptp2_spec_wave = np.nanmedian(np.abs(d2_spec), axis=0)
+    
+    elif len(baseline_ints) == 1:
+        N = int(baseline_ints[0])
+        ptp2_spec_wave = np.nanmedian(np.abs(d2_spec[:N]), axis=0)
+
+    elif len(baseline_ints) == 2:
+        Nlow, Nhigh = map(int, baseline_ints)
+        low_term  = np.nanmedian(np.abs(d2_spec[:Nlow]), axis=0)
+        high_term = np.nanmedian(np.abs(d2_spec[Nhigh:]), axis=0)
+        ptp2_spec_wave = 0.5 * (low_term + high_term)
+
+    else:
+        raise ValueError(f"baseline_ints must be length 1 or 2, got {len(baseline_ints)}")
+
+        # handle wave_range
+    if wave_range is None:
+        ptp2_spec = np.nanmedian(ptp2_spec_wave)
+
+    elif isinstance(wave_range, (list, tuple)) and len(wave_range) == 2:
+        lo, hi = wave_range
+
+        # build a mask of finite wavelengths
+        finite = np.isfinite(wave)
+        if not finite.any():
+            raise ValueError("All entries in wave are NaN!")
+
+        # compute distances, forcing NaN entries to +inf
+        dist_lo = np.abs(wave - lo)
+        dist_lo[~finite] = np.inf
+        dist_hi = np.abs(wave - hi)
+        dist_hi[~finite] = np.inf
+
+        idx_lo = int(np.argmin(dist_lo))
+        idx_hi = int(np.argmin(dist_hi))
+
+        # tolerance check
+        if dist_lo[idx_lo] > tol or dist_hi[idx_hi] > tol:
+            raise ValueError(f"wave_range {wave_range} not found within ±{tol}")
+
+        # ensure idx_lo ≤ idx_hi
+        i0, i1 = sorted((idx_lo, idx_hi))
+
+        # slice and take the median of the subrange
+        sub = ptp2_spec_wave[i0:i1+1]
+        if np.all(np.isnan(sub)):
+            raise ValueError(f"No valid ptp2_spec values in wave range {wave_range}")
+        ptp2_spec = np.nanmedian(sub)
+
+    else:
+        raise ValueError("wave_range must be None or a length-2 list/tuple")
+
+    # final cost
+    cost = w1 * ptp2_white + w2 * ptp2_spec
+
+    return cost, ptp2_spec_wave
+
+
+
+# ----------------------------------------
+# diagnostic_plot
+# ----------------------------------------
+
+def diagnostic_plot(st3, name_str, baseline_ints=baseline_ints, outdir=outdir_f):
+    """
+    Generate three diagnostic plots from the stage-3 flux array:
+      1. Normalized white-light curve
+      2. Normalized white-light curve with error bars
+      3. Normalized flux image (integrations vs spectral pixels)
+
+    Parameters
+    ----------
+    st3 : dict-like
+        Must contain a key 'Flux' giving a 2D array (n_int x n_pix).
+    name_str : str
+        Identifier used in output filenames.
+
+    Output
+    ------
+    pipeline_outputs_directory/Files/
+        norm_white_{name_str}.png
+        flux_img_{name_str}.png
+    """
+    # ensure output dir exists
+    os.makedirs(outdir, exist_ok=True)
+
+    # grab the flux array
+    flux = np.asarray(st3['Flux'], dtype=float)
+    wave = np.asarray(st3['Wave'], dtype=float)
+
+    # ---  white light curve ---
+    white = np.nansum(flux, axis=1)
+    white = white[~np.isnan(white)]
+    norm_white = white / np.median(white[:100])
+
+    if len(baseline_ints) == 1:
+        N = int(baseline_ints[0])
+        norm_white = white / np.median(white[:N])
+
+    elif len(baseline_ints) == 2:
+        Nlow, Nhigh = map(int, baseline_ints)
+        low_term  = np.median(white[:Nlow])
+        high_term = np.median(white[Nhigh:])
+        median_base = 0.5 * (low_term + high_term)
+        norm_white = white / median_base
+
+    else:
+        raise ValueError(f"baseline_ints must be length 1 or 2, got {len(baseline_ints)}")
+    
+
+    # 1) simple normalized white curve
+    plt.figure()
+    plt.plot(norm_white, marker='.')
+    plt.xlabel("Integration Number")
+    plt.ylabel("Normalized White Flux")
+    plt.title("Normalized White-light Curve")
+    plt.grid(True)
+    plt.savefig(f"{outdir}/norm_white_{name_str}.png", dpi=300)
+    plt.close()
+
+    # 2) normalized flux image (integration vs. wavelength)
+    plt.figure()
+    img = flux / np.nanmedian(flux, axis=0, keepdims=True)
+    n_int, n_pix = flux.shape
+    
+    # ignore NaNs when finding wavelength bounds
+    finite = np.isfinite(wave)
+    if not finite.any():
+        raise ValueError("No finite wavelengths found!")
+    wmin, wmax = wave[finite].min(), wave[finite].max()
+    
+    # transpose img so rows→wavelength, cols→integration
+    plt.imshow(
+        img.T,              # swap axes
+        vmin=0.98, vmax=1.02,
+        aspect='auto',
+        origin='lower',
+        extent=[0, n_int-1, wmin, wmax]
+    )
+    plt.xlabel("Integration Number")
+    plt.ylabel("Wavelength (µm)")
+    plt.title("Normalized Flux Image")
+    plt.colorbar(label="Relative Flux")
+    plt.savefig(f"{outdir}/flux_img_{name_str}.png", dpi=300)
+    plt.close()
+
+
+
+# ----------------------------------------
+# covariance
+# ----------------------------------------
+
+def compute_cov_metric(random_seed=42):
+    """
+    Compute covariance metric for the spectrum file located in pipeline_outputs_directory/Stage3.
+
+    Parameters:
+    random_seed (int or None): Seed for reproducible noise generation (default: 42).
+
+    Returns:
+    float: Covariance metric (percent excess correlation).
+    """
+    # Define Stage3 output directory
+    stage3_dir = os.path.join("pipeline_outputs_directory", "Stage3")
+    # Find the FITS file ending with _box_spectra_fullres.fits
+    pattern = os.path.join(stage3_dir, "*_box_spectra_fullres.fits")
+    matches = glob.glob(pattern)
+    if not matches:
+        raise FileNotFoundError(f"No spectrum file matching *_box_spectra_fullres.fits found in {stage3_dir}")
+    # Use the first match
+    final_output_spectrum_file = matches[0]
+
+    # Load & normalize
+    spec = fits.getdata(final_output_spectrum_file, 3)
+    spec /= np.nanmedian(spec[:100], axis=0)
+    cov_matrix2 = np.corrcoef(spec[:100].T)
+
+    # Prepare reproducible RNG
+    rng = np.random.default_rng(random_seed)
+
+    # Simulate noise with same per-column deviation
+    dev = np.nanstd(spec[:100], axis=0)
+    ss = np.empty_like(spec)
+    for i in range(len(dev)):
+        ss[:, i] = rng.normal(0, dev[i], spec.shape[0])
+    cov_matrix = np.corrcoef(ss[:100].T)
+
+    # Compute percent excess correlation
+    cov_metric = (np.nanmean(np.abs(cov_matrix2)) / np.nanmean(np.abs(cov_matrix))) * 100 - 100
+    return cov_metric
+
+def compute_cov_metric_avg(n_seeds=10, start_seed=0):
+    metrics = []
+    for i in range(n_seeds):
+        seed = start_seed + i
+        cov = compute_cov_metric(random_seed=seed)
+        metrics.append(cov)
+    avg_cov = np.mean(metrics)
+    return avg_cov, metrics
+
+# ----------------------------------------
+# photon noise
+# ----------------------------------------
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from astropy.io import fits
+from scipy.ndimage import median_filter
+from exotedrf.utils import format_out_frames
+
+name_str = 'P2P_spec_whole_V3'
+
+def plot_scatter_with_photon_noise(
+    txtfile, rows,
+    wave_range=None, smooth=None,
+    spectrum_files=None, ngroup=None, baseline_ints=None,
+    order=1, tframe=5.494, gain=1.6,
+    style='line', ylim=None, save_path=None,
+    tol=0.005
+):
+    """
+    1) Plot P2P scatter rows (with smoothing+clipping) vs. wavelength.
+    2) If `spectrum_files` is given, overplot photon-noise and 2× photon-noise (ppm).
+
+    Args:
+        txtfile (str): P2P scatter text file
+        rows (list[int]): rows to plot (0-based or negative)
+        wave_range (tuple, optional): (min_wave, max_wave) in same units as FITS
+        smooth (int, optional): moving-average window
+        spectrum_files (list[str]): FITS files (must include 'Wave' in ext 1)
+        ngroup (float), baseline_ints (list[int]), order (int),
+        tframe (float), gain (float): instrument parameters
+        style (str): 'line' or 'scatter'
+        ylim (tuple), save_path (str): plotting args
+        tol (float): slack around wave_range ends for selecting pixels
+    """
+
+    # — Load scatter table —
+    df = pd.read_csv(txtfile, sep=r'\s+', header=None).fillna(0)
+    n_rows, n_cols = df.shape
+
+    # — Determine valid rows —
+    valid = []
+    for r in rows:
+        idx = r if r >= 0 else n_rows + r
+        if 0 <= idx < n_rows:
+            valid.append(idx)
+        else:
+            print(f"Warning: row {r} out of range, skipping.")
+    if not valid:
+        raise ValueError("No valid rows to plot.")
+    labels = [str(i+1) for i in valid]
+
+    # — Load wavelength axis —
+    if not spectrum_files:
+        raise ValueError("`spectrum_files` is required.")
+    with fits.open(spectrum_files[0]) as hdus:
+        wave_full = hdus[1].data.astype(float)
+    Npix = wave_full.size
+
+    # — Map wave_range to pixel indices via mask —
+    if wave_range is not None:
+        wmin, wmax = wave_range
+        mask_range = (
+            (wave_full >= wmin - tol) &
+            (wave_full <= wmax + tol) &
+            np.isfinite(wave_full)
+        )
+        if not mask_range.any():
+            raise ValueError(
+                f"Requested wave_range {wave_range} yields no finite pixels within ±{tol}."
+            )
+        idxs = np.where(mask_range)[0]
+        start, end = idxs.min(), idxs.max()
+    else:
+        start, end = 0, Npix - 1
+
+    # — Slice wavelength and mask NaNs —
+    wave = wave_full[start:end+1]
+    mask_wave = np.isfinite(wave)
+    if not mask_wave.any():
+        raise ValueError("No finite wavelengths in the selected slice.")
+
+    plt.figure(figsize=(8, 4))
+
+    # — Plot P2P scatter vs. wavelength —
+    for idx, lab in zip(valid, labels):
+        y_full = df.iloc[idx, :].values.astype(float)
+        if smooth and smooth > 1:
+            w = int(smooth)
+            kern = np.ones(w) / w
+            y_full = np.convolve(y_full, kern, mode='same')
+        y = y_full[start:end+1] * 1e6  # convert to ppm
+        x = wave[mask_wave]
+        y = y[mask_wave]
+        if style == 'line':
+            plt.plot(x, y, linewidth=1.0, label=lab)
+        else:
+            plt.scatter(x, y, s=2, label=lab)
+
+    # — Photon-noise overlay —
+    if spectrum_files:
+        base = format_out_frames(baseline_ints)
+        with fits.open(spectrum_files[0]) as hdus:
+            spec = hdus[3].data.astype(float) if order == 1 else hdus[7].data.astype(float)
+        spec *= (tframe * gain * ngroup)
+        ii = np.arange(spec.shape[-1])
+
+        # Empirical scatter [ppm]
+        scatter_vals = np.full(ii.shape, np.nan)
+        for i in ii:
+            pix = spec[:, i]
+            denom = np.median(pix[base])
+            if denom > 0 and np.isfinite(denom):
+                noise = 0.5 * (pix[:-2] + pix[2:]) - pix[1:-1]
+                scatter_vals[i] = np.median(np.abs(noise)) / denom
+        data_ppm = median_filter(scatter_vals * 1e6, size=10)
+
+        # Theoretical photon floor [ppm]
+        med = np.median(spec[base], axis=0)
+        phot = np.full_like(med, np.nan)
+        good = (med > 0) & np.isfinite(med)
+        phot[good] = np.sqrt(med[good]) / med[good]
+        phot_ppm_filt = median_filter(phot, size=10)
+
+        # Overlay on wavelength
+        wn = wave_full[10:-10]
+        valid = np.isfinite(wn) & np.isfinite(phot_ppm_filt[10:-10])
+        plt.plot(wn[valid], phot_ppm_filt[10:-10][valid]*1e6,
+                 'k-', lw=1.0, label='photon noise')
+        plt.plot(wn[valid], 2*phot_ppm_filt[10:-10][valid]*1e6,
+                 'k--', lw=1.0, label='2× photon noise')
+        plt.ylabel("Precision (ppm)")
+    else:
+        plt.ylabel("Scatter")
+
+    # — Finalize —
+    plt.xlim(wave[mask_wave].min(), wave[mask_wave].max())
+    if ylim is not None:
+        plt.ylim(ylim)
+    plt.xlabel("Wavelength (μm)")
+    plt.legend(ncol=2 if spectrum_files else 1, fontsize='small')
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight')
+        print(f"Figure saved to {save_path}")
+    plt.show()
+
+"""
+# Example usage:
+fname    = f'Cost_{name_str}.txt'
+data     = np.genfromtxt(fname, delimiter='\t', names=True, dtype=None, encoding=None)
+best_idx = np.argmin(data['cost'])
+
+plot_scatter_with_photon_noise(
+    txtfile="Scatter_P2P_spec_whole_V3.txt",
+    rows=[best_idx],
+    wave_range=(3.0, 3.4),              # now selects nearest finite pixels in that range
+    smooth=21,
+    spectrum_files=["WASP-39_nrs1_box_spectra_fullres.fits"],
+    ngroup=70,
+    baseline_ints=[100],
+    order=1,
+    tframe=0.902,
+    gain=1.0,
+    style="line",
+    ylim=(0,5000),
+    save_path="combined_scatter_noise_wavelength.png",
+    tol=0.005
+)
+"""
+
+
+
+
 
 # ----------------------------------------
 # main
@@ -78,7 +655,7 @@ def main():
         mode=cfg["observing_mode"],
         filetag=cfg["input_filetag"],
         filter_detector=cfg["filter_detector"],
-    )
+    ) 
     if not input_files:
         fancyprint(f"[WARN] No files in {cfg['input_dir']}, globbing *.fits")
         input_files = sorted(glob.glob(os.path.join(cfg["input_dir"], "*.fits")))
@@ -86,113 +663,78 @@ def main():
         raise RuntimeError(f"No FITS found in {cfg['input_dir']}")
     fancyprint(f"Using {len(input_files)} segment(s) from {cfg['input_dir']}")
 
-    # Slice First segment
-    #seg0 = os.path.join(cfg["input_dir"], input_files[0].split(os.sep)[-1])
 
-    seg0 = os.path.join(
-        cfg['input_dir'],
-        "jw01366003001_04101_00001-seg001_nrs1_uncal.fits"
-    )
-
-    # determine integration number (slice) K=
-    dm_full = datamodels.open(seg0)
-    K = min(60, dm_full.data.shape[0])
-    dm_slice = dm_full.copy()
-    dm_slice.data = dm_full.data[:K]
-    dm_slice.meta.exposure.integration_start = 1
-    dm_slice.meta.exposure.integration_end = K
-    dm_slice.meta.exposure.nints = K
-    dm_full.close()
-
-    # Parameter to SWEEP sweep
+    # --- parameter ranges ---
     param_ranges = {}
     if args.instrument == "NIRISS":
         param_ranges.update({
             "soss_inner_mask_width": [20, 40, 80],
             "soss_outer_mask_width": [35, 70, 140],
-            "jump_threshold": [5, 15, 30],
-            "time_jump_threshold": [3, 10, 20],
+            "jump_threshold":         [5, 15, 30],
+            "time_jump_threshold":    [3, 10, 20],
         })
     elif args.instrument == "NIRSPEC":
         param_ranges.update({
-            #'time_window':              list(range(1,9,2)), # works
-            #'rejection_threshold':     list(range(10,21,1)), # works for Flag_up_ramp = True
-            #'time_rejection_threshold': list(range(9,31,1)), # works           
-            #"nirspec_mask_width":       list(range(9,31,1)), # works
+            "nirspec_mask_width":        list(range(10,25,2)),
+            "time_rejection_threshold":  list(range(5,11,1)),
+            "time_window":               list(range(3,12,2)),
         })
     else:  # MIRI
         param_ranges.update({
-            #"miri_drop_groups": [6, 12, 24],
-            #"jump_threshold": [5, 15, 30],
-            #"time_jump_threshold": [3, 10, 20],
-            #"miri_trace_width": [10, 20, 40], 
-            #"miri_background_width": [7, 14, 28],
+            # add MIRI‐specific ranges here if desired
         })
-    # for all instruments
+
+    # common parameters
     param_ranges.update({
-        #"space_thresh": list(range(1,21,1)),
-        #"time_thresh":  list(range(1,16,1)),
-        #"box_size":     list(range(1,21,1)),  
-        #"window_size":  list(range(1,16,1)),  
-        #"extract_width": list(range(1,21,1 )),
-        "extract_width": [5]
-                
+        "space_thresh":  list(range(5,16,1)),
+        "time_thresh":   list(range(5,16,1)),
+        "box_size":      list(range(2,9,1)),
+        "window_size":   list(range(3,12,2)),
+        "extract_width": list(range(3,11,1)),
     })
 
-    param_order = list(param_ranges.keys())
-    current = {k: int(np.median(v)) for k, v in param_ranges.items()}
-    total_steps = sum(len(v) for v in param_ranges.values())
+    param_order   = list(param_ranges.keys())
+    total_steps   = sum(len(v) for v in param_ranges.values())
 
-    # Logging
-    logf = open("Output/Cost_w1_0.0_w2_1.0_K100_DEFAULT.txt", "w")
-    logf.write("\t".join(param_order) + "\tduration_s\tcost\n")
-
-    stage1_keys = [
-        "rejection_threshold", "time_rejection_threshold",
-        "nirspec_mask_width", "soss_inner_mask_width",
-        "soss_outer_mask_width", "miri_drop_groups",
+    stage1_keys   = [
+        "rejection_threshold", "time_rejection_threshold","time_window",
+        "nirspec_mask_width",   "soss_inner_mask_width",
+        "soss_outer_mask_width","miri_drop_groups",
     ]
-    
-    stage2_keys = [
-        "space_thresh", "time_thresh",      
-        "time_window",                      
+    stage2_keys   = [
+        "space_thresh", "time_thresh",
         "miri_trace_width", "miri_background_width",
     ]
+    stage3_keys   = ["extract_width"]
 
-    stage3_keys = ["extract_width"]
+    # initialize current to medians
+    current = {k: int(np.median(v)) for k,v in param_ranges.items()}
+
+    # open global log
+    logf = open(f"pipeline_outputs_directory/Files/Cost_{name_str}.txt","w")
+    logc = open(f"pipeline_outputs_directory/Files/cov_{name_str}.txt","w")
+    logs  = open(f"pipeline_outputs_directory/Files/Scatter_{name_str}.txt", "w")
+    logf.write("\t".join(param_order)+"\tduration_s\tcost\n")
 
     count = 1
+    
     # coordinate descent
     for key in param_order:
         fancyprint(
             f"→ Optimizing {key} "
-            f"(fixed-other={{{', '.join([f'{k}:{current[k]}' for k in current if k != key])}}})"
+            f"(fixed-other={{{', '.join(f'{k}:{current[k]}' for k in current if k!=key)}}})"
         )
-        best_cost, best_val = None, current[key]
+
+        best_val = current[key]
+        best_cost = None
+
         for trial in param_ranges[key]:
             fancyprint(f"Step {count}/{total_steps}: {key}={trial}")
             trial_params = {**current, key: trial}
 
-            nints = dm_slice.data.shape[0]
-            print("\033[1;91mnints is:\033[0m", nints)
-            baseline_ints = [10,-10]
+            
 
             t0 = time.perf_counter()
-            s1_args = {k: trial_params[k] for k in stage1_keys if k in trial_params}
-            s2_args = {k: trial_params[k] for k in stage2_keys if k in trial_params}
-            s3_args = {k: trial_params[k] for k in stage3_keys if k in trial_params}
-
-            # Inherit parameters (2nd level)
-            if "time_window" in trial_params:
-                s1_args["JumpStep"] = {"time_window": trial_params["time_window"]}
-            
-            badpix = {}
-            if "box_size"   in trial_params:
-                badpix["box_size"]   = trial_params["box_size"]
-            if "window_size" in trial_params:
-                badpix["window_size"] = trial_params["window_size"]
-            if badpix:
-                s2_args["BadPixStep"] = badpix
 
             print(
                 "\n############################################",
@@ -201,105 +743,213 @@ def main():
                 flush=True
             )
 
-            st1 = run_stage1( 
-                [dm_slice],
-                mode=cfg["observing_mode"],
-                baseline_ints=baseline_ints,
-                flag_up_ramp=False, # Problem
-                save_results=False,
-                skip_steps=[],
-                **s1_args
-            )
+            # split out args
+            s1_args = {k:trial_params[k] for k in stage1_keys  if k in trial_params}
+            s2_args = {k:trial_params[k] for k in stage2_keys  if k in trial_params}
+            s3_args = {k:trial_params[k] for k in stage3_keys  if k in trial_params}
 
+            # inherit for JumpStep 
+            if "time_window" in trial_params:
+                s1_args["JumpStep"] = {"time_window":trial_params["time_window"]}
 
-            st2, centroids = run_stage2(
-                st1,
-                mode=cfg["observing_mode"],
-                baseline_ints=baseline_ints,
-                save_results=False,
-                skip_steps=[],
-                **s2_args,
-                **cfg.get("stage2_kwargs", {})
-            ) 
-            if isinstance(centroids, np.ndarray):
-                centroids = pd.DataFrame(centroids.T, columns=["xpos", "ypos"])
-            st3 = run_stage3(
-                st2,
-                centroids=centroids,
-                save_results=False,
-                skip_steps=[],
-                **s3_args,
-                **cfg.get("stage3_kwargs", {})
-            )
+            # BadPixStep overrides
+            badpix = {}
+            if "box_size"   in trial_params: badpix["box_size"]   = trial_params["box_size"]
+            if "window_size" in trial_params: badpix["window_size"] = trial_params["window_size"]
+            if badpix:
+                s2_args["BadPixStep"] = badpix
+
+            if best_cost == None:
+                # Stage 1
+                st1 = run_stage1(
+                    filenames,
+                    mode=cfg["observing_mode"],
+                    baseline_ints=baseline_ints,
+                    flag_up_ramp=False,
+                    save_results=True,
+                    force_redo=True,
+                    skip_steps=[],
+                    **s1_args
+                )
+                
+                # Stage 2
+                st2, centroids = run_stage2(
+                    st1,
+                    mode=cfg["observing_mode"],
+                    baseline_ints=baseline_ints,
+                    save_results=True,
+                    force_redo=True,
+                    skip_steps=[],
+                    **s2_args,
+                    **cfg.get("stage2_kwargs",{})
+                )
+                if isinstance(centroids,np.ndarray):
+                    centroids = pd.DataFrame(centroids.T,columns=["xpos","ypos"])
+
+                # Stage 3
+                st3 = run_stage3(
+                    st2,
+                    centroids=centroids,
+                    save_results=True,
+                    force_redo=True,
+                    skip_steps=[],
+                    **s3_args,
+                    **cfg.get("stage3_kwargs",{})
+                )
+            
+            else:
+                if key in ('nirspec_mask_width'):
+
+                    st1 = run_stage1(
+                        filenames_int1,
+                        mode=cfg["observing_mode"],
+                        baseline_ints=baseline_ints,
+                        flag_up_ramp=False,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=['DQInitStep','SaturationStep','DarkCurrentStep'],
+                        **s1_args
+                    )
+
+                    st2, centroids = run_stage2(
+                        st1,
+                        mode=cfg["observing_mode"],
+                        baseline_ints=baseline_ints,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=[],
+                        **s2_args,
+                        **cfg.get("stage2_kwargs",{})
+                    )
+                    if isinstance(centroids,np.ndarray):
+                        centroids = pd.DataFrame(centroids.T,columns=["xpos","ypos"])
+                    
+                    st3 = run_stage3(
+                        st2,
+                        centroids=centroids,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=[],
+                        **s3_args,
+                        **cfg.get("stage3_kwargs",{})
+                    )                    
+
+                    
+                elif key in ('time_rejection_threshold', 'time_window'):
+                                        
+                    st1 = run_stage1(
+                        filenames_int2,
+                        mode=cfg["observing_mode"],
+                        baseline_ints=baseline_ints,
+                        flag_up_ramp=False,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=['DQInitStep','SaturationStep','DarkCurrentStep','OneOverFStep','LinearityStep'],
+                        **s1_args
+                    )
+
+                    st2, centroids = run_stage2(
+                        st1,
+                        mode=cfg["observing_mode"],
+                        baseline_ints=baseline_ints,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=[],
+                        **s2_args,
+                        **cfg.get("stage2_kwargs",{})
+                    )
+                    if isinstance(centroids,np.ndarray):
+                        centroids = pd.DataFrame(centroids.T,columns=["xpos","ypos"])
+                    
+                    st3 = run_stage3(
+                        st2,
+                        centroids=centroids,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=[],
+                        **s3_args,
+                        **cfg.get("stage3_kwargs",{})
+                    )                             
+                elif key in ('space_thresh', 'time_thresh', 'box_size', 'window_size'):
+
+                    st2, centroids = run_stage2(
+                        filenames_int3,
+                        mode=cfg["observing_mode"],
+                        baseline_ints=baseline_ints,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=[],
+                        **s2_args,
+                        **cfg.get("stage2_kwargs",{})
+                    )
+                    if isinstance(centroids,np.ndarray):
+                        centroids = pd.DataFrame(centroids.T,columns=["xpos","ypos"])
+                    
+                    st3 = run_stage3(
+                        st2,
+                        centroids=centroids,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=[],
+                        **s3_args,
+                        **cfg.get("stage3_kwargs",{})
+                    )
+                elif key in ('extract_width'):
+      
+                    st2, centroids = run_stage2(
+                        filenames_int4,
+                        mode=cfg["observing_mode"],
+                        baseline_ints=baseline_ints,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=[],
+                        **s2_args,
+                        **cfg.get("stage2_kwargs",{})
+                    )
+                    if isinstance(centroids,np.ndarray):
+                        centroids = pd.DataFrame(centroids.T,columns=["xpos","ypos"])
+                    
+                    st3 = run_stage3(
+                        st2,
+                        centroids=centroids,
+                        save_results=True,
+                        force_redo=True,
+                        skip_steps=[], 
+                        **s3_args,
+                        **cfg.get("stage3_kwargs",{})
+                    )
+
+            
+
+            cost, scatter = cost_function(st3, baseline_ints=baseline_ints, wave_range=(3.2,3.4))
+            
+            covariance, all_covs = compute_cov_metric_avg(n_seeds=10, start_seed=0)
+
 
             dt = time.perf_counter() - t0
-            cost = cost_function(st3)
             fancyprint(f"→ cost = {cost:.12f} in {dt:.1f}s")
 
+            # log it
             logf.write(
                 "\t".join(str(trial_params[k]) for k in param_order)
                 + f"\t{dt:.1f}\t{cost:.12f}\n"
             )
 
+            line = " ".join(f"{x:.10g}" for x in scatter)  
+            logs.write(line + "\n")
+            logc.write(f"{covariance:.10f}\n")
 
             if best_cost is None or cost < best_cost:
                 best_cost, best_val = cost, trial
+                diagnostic_plot(st3, name_str, baseline_ints=baseline_ints, outdir=outdir_f)
 
-                print("\033[1;91mbest_cost\033[0m", best_cost)
-
-                flux = np.asarray(st3['Flux'], dtype=float)
-                white = np.nansum(flux, axis=1)
-                white = white[~np.isnan(white)]
-                med_white = np.median(white)
-                norm_white = white / med_white
-                norm_med_white = np.median(norm_white)
-                norm_mad_white = np.median(np.abs(norm_white - norm_med_white))
-                spec = flux
-                norm_spec = spec / np.nanmedian(spec, axis=1, keepdims=True)
-                mad_spec_per_int = np.nanmedian(np.abs(norm_spec - 1.0), axis=1)
-                norm_mad_spec = np.nanmedian(mad_spec_per_int)
-
-                # 1) Normalized white-light curve
-                plt.figure()
-                plt.plot(norm_white, marker='o')
-                plt.xlabel("Integration Number")
-                plt.ylabel("Normalized White Flux")
-                plt.title("Normalized White-light Curve")
-                plt.grid(True)           
-                plt.savefig("Output/norm_white_w1_0.0_w2_1.0_K100_DEFAULT.png", dpi=300)
-                plt.close()
-
-                """
-                plt.figure()
-                x = np.arange(len(norm_white))
-                normed_spec = flux / np.nanmedian(flux, axis=1, keepdims=True)
-                yerr = np.nanstd(normed_spec, axis=1)
-                plt.errorbar(x, norm_white, yerr=yerr,fmt="o-", capsize=3, elinewidth=1)
-                plt.xlabel("Integration Number")
-                plt.ylabel("Normalized White Flux")
-                plt.title("Normalized White-light Curve with Errobar")
-                plt.grid(True)                # turn on the grid
-                plt.savefig("Output/norm_white_error_w1_0.0_w2_1.0_K100_DEFAULT.png", dpi=300)
-                plt.close()
-                """
-
-                # 2) Normalized flux image
-                plt.figure()
-                plt.imshow(flux / np.nanmedian(flux, axis=0), aspect='auto', vmin=0.99, vmax=1.01)
-                plt.xlabel("Spectral Pixel")
-                plt.ylabel("Integration Number")
-                plt.title("Normalized Flux Image")
-                plt.savefig("Output/flux_w1_0.0_w2_1.0_K100_DEFAULT.png", dpi=300)
-                plt.close()
-
+            print('\n\n##########',st3['Wave'])
             print(
                 "\n############################################",
                 f"\n Step: {count}/{total_steps} completed (dt={dt:.1f}s)",
                 "\n############################################\n",
                 flush=True
-            )            
-
-            print("\033[1m\033[94m========== Cost ==========\033[0m",'\n', cost,'\n')
+            )         
 
             count += 1
 
@@ -308,18 +958,19 @@ def main():
 
     # total runtime
     t1 = time.perf_counter() - t0_total
-    h, m = divmod(int(t1), 3600)
-    m, s = divmod(m, 60)
-    runtime_str = f"TOTAL runtime: {h}h {m:02d}min {s:04.1f}s\n"
-    fancyprint(runtime_str)
-    logf.write(runtime_str)
-
+    h, m = divmod(int(t1),3600)
+    m, s = divmod(m,60)
+    fancyprint(f"TOTAL runtime: {h}h {m:02d}min {s:04.1f}s")
     logf.close()
+    logs.close()
+    logc.close()
+
     fancyprint("=== FINAL OPTIMUM ===")
     fancyprint(current)
-    fancyprint("Log saved to Cost_function_V2.txt")
+    plot_cost(name_str)
+
+
+
 
 if __name__ == "__main__":
     main()
-
-
