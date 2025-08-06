@@ -543,6 +543,7 @@ def main():
             print('key  = ', key)
             print('param_order  = ', param_order)
             print('param_ranges[key]  = ', param_ranges[key])
+            print('current  = ', current)
 
             print(
                 "\n############################################",
