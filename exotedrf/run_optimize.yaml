@@ -67,7 +67,7 @@ stage1_kwargs : {}
 AssignWCSStep : 'run'
 Extract2DStep : 'skip'     # NIRSpec only
 SourceTypeStep: 'run'
-WaveCorrStep : 'run'      # NIRSpec only
+WaveCorrStep : 'skip'      # NIRSpec only
 FlatFieldStep : 'run'      # SOSS/MIRI only
 BackgroundStep : 'run'     # SOSS/MIRI only
 OneOverFStep_int : 'skip'  # SOSS/NIRSpec only

@@ -4,14 +4,24 @@ import os
 import glob
 import time
 import argparse
+from exotedrf import utils
+import yaml
+
+cfg = yaml.safe_load(open('run_optimize.yaml'))
+os.environ.setdefault('CRDS_PATH',    cfg.get('crds_cache_path', './crds_cache'))
+os.environ.setdefault('CRDS_SERVER_URL','https://jwst-crds.stsci.edu')
+os.environ.setdefault('CRDS_CONTEXT',  cfg.get('crds_context',   'jwst_1322.pmap'))
+
 import numpy as np
 import pandas as pd
 from jwst import datamodels
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from astropy.io import fits
+from scipy.ndimage import median_filter
+from exotedrf.utils import format_out_frames
 
-from exotedrf import utils
+
 from exotedrf.utils import parse_config, unpack_input_dir, fancyprint
 from exotedrf.stage1 import run_stage1
 from exotedrf.stage2 import run_stage2
@@ -176,9 +186,6 @@ def make_step_filenames(input_files, output_dir, step_tag):
         new_name = f"{base_root}_{step_tag}.fits"
         out.append(os.path.join(output_dir, new_name))
     return out
-
-
-
 
 
 # ----------------------------------------
@@ -433,6 +440,142 @@ def compute_cov_metric_avg(n_seeds=10, start_seed=0):
 # photon noise
 # ----------------------------------------
 
+def plot_scatter_with_photon_noise(
+    txtfile, rows,
+    wave_range=None, smooth=None,
+    spectrum_files=None, ngroup=None, baseline_ints=None,
+    order=1, tframe=5.494, gain=1.6,
+    style='line', ylim=None, save_path=None,
+    tol=0.005
+):
+    """
+    1) Plot P2P scatter rows (with smoothing+clipping) vs. wavelength.
+    2) If `spectrum_files` is given, overplot photon-noise and 2× photon-noise (ppm).
+
+    Args:
+        txtfile (str): P2P scatter text file
+        rows (list[int]): rows to plot (0-based or negative)
+        wave_range (tuple, optional): (min_wave, max_wave) in same units as FITS
+        smooth (int, optional): moving-average window
+        spectrum_files (list[str]): FITS files (must include 'Wave' in ext 1)
+        ngroup (float), baseline_ints (list[int]), order (int),
+        tframe (float), gain (float): instrument parameters
+        style (str): 'line' or 'scatter'
+        ylim (tuple), save_path (str): plotting args
+        tol (float): slack around wave_range ends for selecting pixels
+    """
+
+    # — Load scatter table —
+    df = pd.read_csv(txtfile, sep=r'\s+', header=None).fillna(0)
+    n_rows, n_cols = df.shape
+
+    # — Determine valid rows —
+    valid = []
+    for r in rows:
+        idx = r if r >= 0 else n_rows + r
+        if 0 <= idx < n_rows:
+            valid.append(idx)
+        else:
+            print(f"Warning: row {r} out of range, skipping.")
+    if not valid:
+        raise ValueError("No valid rows to plot.")
+    labels = [str(i+1) for i in valid]
+
+    # — Load wavelength axis —
+    if not spectrum_files:
+        raise ValueError("`spectrum_files` is required.")
+    with fits.open(spectrum_files[0]) as hdus:
+        wave_full = hdus[1].data.astype(float)
+    Npix = wave_full.size
+
+    # — Map wave_range to pixel indices via mask —
+    if wave_range is not None:
+        wmin, wmax = wave_range
+        mask_range = (
+            (wave_full >= wmin - tol) &
+            (wave_full <= wmax + tol) &
+            np.isfinite(wave_full)
+        )
+        if not mask_range.any():
+            raise ValueError(
+                f"Requested wave_range {wave_range} yields no finite pixels within ±{tol}."
+            )
+        idxs = np.where(mask_range)[0]
+        start, end = idxs.min(), idxs.max()
+    else:
+        start, end = 0, Npix - 1
+
+    # — Slice wavelength and mask NaNs —
+    wave = wave_full[start:end+1]
+    mask_wave = np.isfinite(wave)
+    if not mask_wave.any():
+        raise ValueError("No finite wavelengths in the selected slice.")
+
+    plt.figure(figsize=(8, 4))
+
+    # — Plot P2P scatter vs. wavelength —
+    for idx, lab in zip(valid, labels):
+        y_full = df.iloc[idx, :].values.astype(float)
+        if smooth and smooth > 1:
+            w = int(smooth)
+            kern = np.ones(w) / w
+            y_full = np.convolve(y_full, kern, mode='same')
+        y = y_full[start:end+1] * 1e6  # convert to ppm
+        x = wave[mask_wave]
+        y = y[mask_wave]
+        if style == 'line':
+            plt.plot(x, y, linewidth=1.0, label=lab)
+        else:
+            plt.scatter(x, y, s=2, label=lab)
+
+    # — Photon-noise overlay —
+    if spectrum_files:
+        base = format_out_frames(baseline_ints)
+        with fits.open(spectrum_files[0]) as hdus:
+            spec = hdus[3].data.astype(float) if order == 1 else hdus[7].data.astype(float)
+        spec *= (tframe * gain * ngroup)
+        ii = np.arange(spec.shape[-1])
+
+        # Empirical scatter [ppm]
+        scatter_vals = np.full(ii.shape, np.nan)
+        for i in ii:
+            pix = spec[:, i]
+            denom = np.median(pix[base])
+            if denom > 0 and np.isfinite(denom):
+                noise = 0.5 * (pix[:-2] + pix[2:]) - pix[1:-1]
+                scatter_vals[i] = np.median(np.abs(noise)) / denom
+        data_ppm = median_filter(scatter_vals * 1e6, size=10)
+
+        # Theoretical photon floor [ppm]
+        med = np.median(spec[base], axis=0)
+        phot = np.full_like(med, np.nan)
+        good = (med > 0) & np.isfinite(med)
+        phot[good] = np.sqrt(med[good]) / med[good]
+        phot_ppm_filt = median_filter(phot, size=10)
+
+        # Overlay on wavelength
+        wn = wave_full[10:-10]
+        valid = np.isfinite(wn) & np.isfinite(phot_ppm_filt[10:-10])
+        plt.plot(wn[valid], phot_ppm_filt[10:-10][valid]*1e6,
+                 'k-', lw=1.0, label='photon noise')
+        plt.plot(wn[valid], 2*phot_ppm_filt[10:-10][valid]*1e6,
+                 'k--', lw=1.0, label='2× photon noise')
+        plt.ylabel("Precision (ppm)")
+    else:
+        plt.ylabel("Scatter")
+
+    # — Finalize —
+    plt.xlim(wave[mask_wave].min(), wave[mask_wave].max())
+    if ylim is not None:
+        plt.ylim(ylim)
+    plt.xlabel("Wavelength (μm)")
+    plt.legend(ncol=2 if spectrum_files else 1, fontsize='small')
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight')
+        print(f"Figure saved to {save_path}")
+    plt.show()
+
 
 # ----------------------------------------
 # skip step list
@@ -470,9 +613,9 @@ def main():
     cfg = parse_config(args.config)
 
     # Set CRDS environment variables using values from YAML
-    os.environ.setdefault('CRDS_PATH', cfg.get('crds_cache_path', './crds_cache'))
-    os.environ.setdefault('CRDS_SERVER_URL', 'https://jwst-crds.stsci.edu')
-    os.environ.setdefault('CRDS_CONTEXT', cfg.get('crds_context', 'jwst_1322.pmap'))
+    #os.environ.setdefault('CRDS_PATH', cfg.get('crds_cache_path', './crds_cache'))
+    #os.environ.setdefault('CRDS_SERVER_URL', 'https://jwst-crds.stsci.edu')
+    #os.environ.setdefault('CRDS_CONTEXT', cfg.get('crds_context', 'jwst_1322.pmap'))
 
 
     baseline_ints = cfg.get('baseline_ints', [100, -100])
@@ -1203,6 +1346,123 @@ def main():
     fancyprint("=== FINAL OPTIMUM ===")
     fancyprint(current)
     plot_cost(name_str)
+
+    cost_file = os.path.join(outdir_f, f"Cost_{name_str}.txt")
+    df_cost  = pd.read_csv(cost_file, sep="\t")
+    # locate the index of the minimum cost
+    idx_min  = df_cost['cost'].idxmin()
+    best_row = df_cost.loc[idx_min]
+
+    # build a dict of only your swept parameters
+    best_params = {
+        col: int(best_row[col]) if float(best_row[col]).is_integer() else best_row[col]
+        for col in param_order
+    }
+
+    fancyprint(f"Global best from cost table (row {idx_min}): {best_params}")
+
+    # merge into a fresh config
+    final_cfg = cfg.copy()
+    final_cfg.update(best_params)
+
+    # --------------------------------------------------------------------
+    # Fast final validation: only Stage 2 + Stage 3 on precomputed Stage 1
+    # --------------------------------------------------------------------
+    fancyprint("Running fast final validation: only Stage 2 + Stage 3…")
+
+    # Stage 2 on your precomputed Stage-1 outputs (filenames_int4)
+    stage2_skip = []  
+    stage2_results, centroids = run_stage2(
+        filenames_int4,
+        mode=final_cfg['observing_mode'],
+        baseline_ints=final_cfg['baseline_ints'],
+        save_results=final_cfg['save_results'],
+        force_redo=True,
+        space_thresh=final_cfg['space_outlier_threshold'],
+        time_thresh=final_cfg['time_outlier_threshold'],
+        remove_components=final_cfg['remove_components'],
+        pca_components=final_cfg['pca_components'],
+        soss_timeseries=final_cfg['soss_timeseries'],
+        soss_timeseries_o2=final_cfg['soss_timeseries_o2'],
+        oof_method=final_cfg['oof_method'],
+        output_tag=final_cfg['output_tag'],
+        smoothing_scale=final_cfg['smoothing_scale'],
+        skip_steps=stage2_skip,
+        generate_lc=final_cfg['generate_lc'],
+        soss_inner_mask_width=final_cfg['soss_inner_mask_width'],
+        soss_outer_mask_width=final_cfg['soss_outer_mask_width'],
+        nirspec_mask_width=final_cfg['nirspec_mask_width'],
+        pixel_masks=final_cfg['outlier_maps'],
+        generate_order0_mask=final_cfg['generate_order0_mask'],
+        f277w=final_cfg['f277w'],
+        do_plot=True,
+        centroids=final_cfg['centroids'],
+        miri_trace_width=final_cfg['miri_trace_width'],
+        miri_background_width=final_cfg['miri_background_width'],
+        miri_background_method=final_cfg['miri_background_method'],
+        **final_cfg.get('stage2_kwargs', {})
+    )
+
+    # Stage 3 with your best extract_width and other Stage-3 params
+    final_centroids = final_cfg['centroids'] if final_cfg['centroids'] is not None else centroids
+    stage3_results = run_stage3(
+        stage2_results,
+        save_results=final_cfg['save_results'],
+        force_redo=True,
+        extract_method=final_cfg['extract_method'],
+        soss_specprofile=final_cfg['soss_specprofile'],
+        centroids=final_centroids,
+        extract_width=final_cfg['extract_width'],
+        st_teff=final_cfg['st_teff'],
+        st_logg=final_cfg['st_logg'],
+        st_met=final_cfg['st_met'],
+        planet_letter=final_cfg['planet_letter'],
+        output_tag=final_cfg['output_tag'],
+        do_plot=True,
+        skip_steps=[],
+        **final_cfg.get('stage3_kwargs', {})
+    )
+
+    fancyprint("Final validation complete.")
+
+    # visualize the best scatter & photon floor
+    outfile = os.path.join(outdir_f, f"Scatter_{name_str}.txt")
+    specfile = glob.glob(os.path.join(outdir_s3, "*_box_spectra_fullres.fits"))[0]
+    best_idx  = pd.read_csv(os.path.join(outdir_f, f"Cost_{name_str}.txt"), sep="\t")['cost'].idxmin()
+
+    obs = cfg['observing_mode'].lower()
+    wave_range     = cfg.get('wave_range_plot', None)
+    ylim           = cfg.get('ylim_plot',      None)
+
+    # pick instrument-specific photon-noise params
+    if 'miri' in obs:
+        ngroup, tframe, gain = 10, 5.494, 1.6
+    elif 'nirspec' in obs:
+        ngroup, tframe, gain = 70, 0.902, 1.0
+    elif 'niriss' in obs:
+        ngroup, tframe, gain = 50, 1.46, 2.25
+    else:
+        raise ValueError(f"Unrecognized observing_mode: {cfg['observing_mode']}")
+
+    plot_scatter_with_photon_noise(
+        txtfile=outfile,
+        rows=[best_idx],
+        wave_range=wave_range,
+        smooth=21,
+        spectrum_files=[specfile],
+        ngroup=ngroup,
+        baseline_ints=[100],
+        order=1,
+        tframe=tframe,
+        gain=gain,
+        ylim = ylim,
+        style="line",
+        save_path=os.path.join(outdir_f, "scatter_vs_photon_noise.png"),
+        tol=0.005
+    )
+
+
+
 
 if __name__ == "__main__":
     main()
