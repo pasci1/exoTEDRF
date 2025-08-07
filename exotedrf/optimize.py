@@ -1465,9 +1465,11 @@ def main():
         planet_letter=final_cfg['planet_letter'],
         output_tag=final_cfg['output_tag'],
         do_plot=False,
-        skip_steps=[],
+        skip_steps=[], 
         **final_cfg.get('stage3_kwargs', {})
     )
+
+    diagnostic_plot(stage3_results, name_str, baseline_ints=baseline_ints, outdir=outdir_f)
 
     fancyprint("Final validation complete.")
 
@@ -1486,7 +1488,7 @@ def main():
     elif 'nirspec' in obs:
         ngroup, tframe, gain = 70, 0.902, 1.0
     elif 'niriss' in obs:
-        ngroup, tframe, gain = 50, 1.46, 2.25
+        ngroup, tframe, gain = 50, 1.46, 2.25 #???
     else:
         raise ValueError(f"Unrecognized observing_mode: {cfg['observing_mode']}")
 
