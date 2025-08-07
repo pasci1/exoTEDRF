@@ -820,7 +820,7 @@ def main():
                         soss_timeseries_o2=run_cfg['soss_timeseries_o2'],
                         save_results=run_cfg['save_results'],
                         pixel_masks=run_cfg['outlier_maps'],
-                        force_redo=False, 
+                        force_redo=True, 
                         flag_up_ramp=run_cfg['flag_up_ramp'],
                         rejection_threshold=run_cfg['jump_threshold'],
                         flag_in_time=run_cfg['flag_in_time'],
