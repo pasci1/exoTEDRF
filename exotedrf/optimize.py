@@ -1490,7 +1490,7 @@ def main():
     elif 'nirspec' in obs:
         ngroup, tframe, gain = 70, 0.902, 1.0
     elif 'niriss' in obs:
-        ngroup, tframe, gain = 50, 1.46, 2.25 #???
+        ngroup, tframe, gain = 9, 5.494, 2.25 #???
     else:
         raise ValueError(f"Unrecognized observing_mode: {cfg['observing_mode']}")
 
