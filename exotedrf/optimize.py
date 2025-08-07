@@ -658,7 +658,8 @@ def main():
         filter_detector=cfg["filter_detector"],
     ) 
 
-
+    if isinstance(input_files, np.ndarray):
+        input_files = input_files.tolist()
 
 
     if not input_files:
