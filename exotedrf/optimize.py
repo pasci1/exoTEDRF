@@ -1398,8 +1398,12 @@ def main():
     fancyprint(f"Global best from cost table (row {idx_min}): {best_params}")
 
     # merge into a fresh config
+
+    full_best = fixed_params.copy()
+    full_best.update(best_params)
+
     final_cfg = cfg.copy()
-    final_cfg.update(best_params)
+    final_cfg.update(full_best)
 
     # --------------------------------------------------------------------
     # Fast final validation: only Stage 2 + Stage 3 on precomputed Stage 1
@@ -1507,4 +1511,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main() 
