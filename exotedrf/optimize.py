@@ -819,12 +819,12 @@ def main():
                         soss_timeseries_o2=run_cfg['soss_timeseries_o2'],
                         save_results=run_cfg['save_results'],
                         pixel_masks=run_cfg['outlier_maps'],
-                        force_redo=True, 
+                        force_redo=False, 
                         flag_up_ramp=run_cfg['flag_up_ramp'],
                         rejection_threshold=run_cfg['jump_threshold'],
                         flag_in_time=run_cfg['flag_in_time'],
                         time_rejection_threshold=run_cfg['time_jump_threshold'],
-                        output_tag=run_cfg['output_tag'],
+                        output_tag=run_cfg['output_tag'], 
                         skip_steps=stage1_skip,
                         do_plot=False, 
                         soss_inner_mask_width=run_cfg['soss_inner_mask_width'],
@@ -882,6 +882,9 @@ def main():
                         **s2_args
                     )
                     stage2_results, centroids = stage2_results
+                    if isinstance(centroids, np.ndarray):
+                        centroids = pd.DataFrame(centroids.T, columns=["xpos","ypos"])
+
                 else:
                     stage2_results = stage1_results
                     centroids = cfg['centroids']
@@ -1002,6 +1005,8 @@ def main():
                             **run_cfg.get('stage2_kwargs', {}),
                             **s2_args
                         )
+                        if isinstance(centroids, np.ndarray):
+                            centroids = pd.DataFrame(centroids.T, columns=["xpos","ypos"])
                     else:
                         stage2_results = stage1_results
                         centroids = cfg['centroids']
@@ -1033,7 +1038,7 @@ def main():
                             skip_steps=stage3_skip,
                             **run_cfg.get('stage3_kwargs', {}),
                             **s3_args
-                        )
+                        )                        
                     else:
                         stage3_results = stage2_results           
 
@@ -1124,6 +1129,8 @@ def main():
                             **run_cfg.get('stage2_kwargs', {}),
                             **s2_args
                         )
+                        if isinstance(centroids, np.ndarray):
+                            centroids = pd.DataFrame(centroids.T, columns=["xpos","ypos"])                        
                     else:
                         stage2_results = stage1_results
                         centroids = cfg['centroids']
@@ -1205,6 +1212,8 @@ def main():
                             **run_cfg.get('stage2_kwargs', {}),
                             **s2_args
                         )
+                        if isinstance(centroids, np.ndarray):
+                            centroids = pd.DataFrame(centroids.T, columns=["xpos","ypos"])                        
                     else:
                         stage2_results = filenames_int3
                         centroids = cfg['centroids']
@@ -1284,6 +1293,8 @@ def main():
                             **run_cfg.get('stage2_kwargs', {}),
                             **s2_args
                         )
+                        if isinstance(centroids, np.ndarray):
+                            centroids = pd.DataFrame(centroids.T, columns=["xpos","ypos"])                        
                     else:
                         stage2_results = filenames_int4
                         centroids = cfg['centroids']
@@ -1403,8 +1414,8 @@ def main():
         baseline_ints=final_cfg['baseline_ints'],
         save_results=final_cfg['save_results'],
         force_redo=True,
-        space_thresh=final_cfg['space_outlier_threshold'],
-        time_thresh=final_cfg['time_outlier_threshold'],
+        space_thresh=final_cfg['space_thresh'],
+        time_thresh=final_cfg['time_thresh'],
         remove_components=final_cfg['remove_components'],
         pca_components=final_cfg['pca_components'],
         soss_timeseries=final_cfg['soss_timeseries'],
@@ -1420,13 +1431,15 @@ def main():
         pixel_masks=final_cfg['outlier_maps'],
         generate_order0_mask=final_cfg['generate_order0_mask'],
         f277w=final_cfg['f277w'],
-        do_plot=True,
+        do_plot=False,
         centroids=final_cfg['centroids'],
         miri_trace_width=final_cfg['miri_trace_width'],
         miri_background_width=final_cfg['miri_background_width'],
         miri_background_method=final_cfg['miri_background_method'],
         **final_cfg.get('stage2_kwargs', {})
     )
+    if isinstance(centroids, np.ndarray):
+        centroids = pd.DataFrame(centroids.T, columns=["xpos","ypos"])
 
     # Stage 3 with your best extract_width and other Stage-3 params
     final_centroids = final_cfg['centroids'] if final_cfg['centroids'] is not None else centroids
@@ -1443,7 +1456,7 @@ def main():
         st_met=final_cfg['st_met'],
         planet_letter=final_cfg['planet_letter'],
         output_tag=final_cfg['output_tag'],
-        do_plot=True,
+        do_plot=False,
         skip_steps=[],
         **final_cfg.get('stage3_kwargs', {})
     )
