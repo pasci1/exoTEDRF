@@ -644,6 +644,7 @@ def main():
 
 
     baseline_ints = cfg.get('baseline_ints', [100, -100])
+    wave_range = cfg.get('wave_range', None)
     name_str = cfg.get('name_tag', 'default_run')
 
     t0_total = time.perf_counter()
@@ -1336,7 +1337,7 @@ def main():
 
             
 
-            cost, scatter = cost_function(st3, baseline_ints=baseline_ints)
+            cost, scatter = cost_function(st3, baseline_ints=baseline_ints, wave_range=wave_range)
             
             covariance, all_covs = compute_cov_metric_avg(n_seeds=10, start_seed=0)
 
@@ -1479,8 +1480,8 @@ def main():
     best_idx  = pd.read_csv(os.path.join(outdir_f, f"Cost_{name_str}.txt"), sep="\t")['cost'].idxmin()
 
     obs = cfg['observing_mode'].lower()
-    wave_range     = cfg.get('wave_range_plot', None)
-    ylim           = cfg.get('ylim_plot',      None)
+    wave_range_plot     = cfg.get('wave_range_plot', None)
+    ylim_plot           = cfg.get('ylim_plot',      None)
 
     # pick instrument-specific photon-noise params
     if 'miri' in obs:
@@ -1495,7 +1496,7 @@ def main():
     plot_scatter_with_photon_noise(
         txtfile=outfile,
         rows=[best_idx],
-        wave_range=wave_range,
+        wave_range=wave_range_plot,
         smooth=21,
         spectrum_files=[specfile],
         ngroup=ngroup,
@@ -1503,7 +1504,7 @@ def main():
         order=1,
         tframe=tframe,
         gain=gain,
-        ylim = ylim,
+        ylim = ylim_plot,
         style="line",
         save_path=os.path.join(outdir_f, "scatter_vs_photon_noise.png"),
         tol=0.005

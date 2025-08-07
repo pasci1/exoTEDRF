@@ -119,14 +119,15 @@ save_results : True
 # Force redo of steps which have already been completed.
 force_redo : True # must be True for the optimizer to work
 # Integrations of ingress and/or egress.
-baseline_ints : [50, -50]
+baseline_ints : [150, -100]
 # File with trace centroids for box extraction and 1/f correction (optional).
 centroids : None
 # If True, make diagnostic plots.
 do_plots : False
 
 # ===== Optimize =====
-wave_range_plot : [3,3.4]
+wave_range : null
+wave_range_plot : null
 ylim_plot : [0,5000]
 # either a List [a,b,...] to sweep over or an Integer c to set as Default
 
