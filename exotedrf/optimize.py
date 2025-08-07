@@ -1,16 +1,41 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 import glob
 import time
 import argparse
 from exotedrf import utils
 import yaml
 
-cfg = yaml.safe_load(open('run_optimize.yaml'))
-os.environ.setdefault('CRDS_PATH',    cfg.get('crds_cache_path', './crds_cache'))
-os.environ.setdefault('CRDS_SERVER_URL','https://jwst-crds.stsci.edu')
-os.environ.setdefault('CRDS_CONTEXT',  cfg.get('crds_context',   'jwst_1322.pmap'))
+# 1) Pluck out “--config” early, without consuming the real argparse in main()
+early = argparse.ArgumentParser(add_help=False)
+early.add_argument(
+    "--config", "-c",
+    default="run_optimize.yaml",
+    help="Path to your DMS config YAML"
+)
+# parse_known_args will ignore other flags, leaving them in `remaining`
+args, remaining = early.parse_known_args()
+
+# 2) Load that config to set CRDS before any JWST imports
+try:
+    cfg_early = yaml.safe_load(open(args.config))
+except FileNotFoundError:
+    sys.exit(f"ERROR: config file '{args.config}' not found.")
+
+os.environ.setdefault(
+    "CRDS_PATH",
+    cfg_early.get("crds_cache_path", "./crds_cache")
+)
+os.environ.setdefault(
+    "CRDS_SERVER_URL",
+    "https://jwst-crds.stsci.edu"
+)
+os.environ.setdefault(
+    "CRDS_CONTEXT",
+    cfg_early.get("crds_context", "jwst_1322.pmap")
+)
 
 import numpy as np
 import pandas as pd
