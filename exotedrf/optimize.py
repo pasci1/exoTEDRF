@@ -1414,8 +1414,8 @@ def main():
         baseline_ints=final_cfg['baseline_ints'],
         save_results=final_cfg['save_results'],
         force_redo=True,
-        space_thresh=final_cfg['space_thresh'],
-        time_thresh=final_cfg['time_thresh'],
+        space_thresh=final_cfg['space_outlier_threshold'],
+        time_thresh=final_cfg['time_outlier_threshold'],
         remove_components=final_cfg['remove_components'],
         pca_components=final_cfg['pca_components'],
         soss_timeseries=final_cfg['soss_timeseries'],
@@ -1440,9 +1440,13 @@ def main():
     )
     if isinstance(centroids, np.ndarray):
         centroids = pd.DataFrame(centroids.T, columns=["xpos","ypos"])
+        print("\n\n\nit does go here", centroids)
 
     # Stage 3 with your best extract_width and other Stage-3 params
     final_centroids = final_cfg['centroids'] if final_cfg['centroids'] is not None else centroids
+
+    print(final_centroids)
+
     stage3_results = run_stage3(
         stage2_results,
         save_results=final_cfg['save_results'],
