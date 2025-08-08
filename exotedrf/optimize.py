@@ -54,7 +54,6 @@ from exotedrf.stage3 import run_stage3
 
 #####################################
 
-#uncal_indir = 'Optimize_WASP39b/DMS_uncal/'  # Where our uncalibrated files are found.
 outdir = 'pipeline_outputs_directory'
 outdir_f = 'pipeline_outputs_directory/Files'
 outdir_s1 = 'pipeline_outputs_directory/Stage1/'
@@ -1490,7 +1489,7 @@ def main():
     elif 'nirspec' in obs:
         ngroup, tframe, gain = 70, 0.902, 1.0
     elif 'niriss' in obs:
-        ngroup, tframe, gain = 9, 5.494, 2.25 #???
+        ngroup, tframe, gain = 9, 5.494, 1.6 #???
     else:
         raise ValueError(f"Unrecognized observing_mode: {cfg['observing_mode']}")
 
@@ -1510,7 +1509,7 @@ def main():
         save_path=os.path.join(outdir_f, "scatter_vs_photon_noise.png"),
         tol=0.005
     )
-
+ 
 
 
 
