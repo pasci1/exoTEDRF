@@ -813,7 +813,7 @@ def main():
 
             if best_cost is None:
                 # ===== Stage 1 =====
-                always_skip1 = []
+                always_skip1 = ['JumpStep', 'TEST']
                 stage1_skip = get_stage_skips(
                     cfg,
                     stage1_steps,
