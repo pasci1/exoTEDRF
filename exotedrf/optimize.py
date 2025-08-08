@@ -1452,7 +1452,7 @@ def main():
     final_centroids = final_cfg['centroids'] if final_cfg['centroids'] is not None else centroids
 
     print(final_centroids)
-
+ 
     stage3_results = run_stage3(
         stage2_results, 
         save_results=final_cfg['save_results'],

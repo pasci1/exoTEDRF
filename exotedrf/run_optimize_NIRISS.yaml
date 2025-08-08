@@ -151,7 +151,7 @@ optimize_miri_background_width : 14
 # For outlier detection; sigma threshold for a pixel to be flagged as an outlier, spatially. [5,6,7,8,9,10,11,12,13,14,15]
 optimize_space_outlier_threshold : [5,6,7,8,9,10,11]
 # For outlier detection; sigma threshold for a pixel to be flagged as an outlier, temporally. [5,6,7,8,9,10,11,12,13,14,15]
-optimize_time_outlier_threshold : [5,6,7,8,9,10,11]
+optimize_time_outlier_threshold : [5,6,7,8,9,10,11] 
 # Box size in BadPixStep [2,3,4,5,6,7,8]
 optimize_box_size : [3,4,5,6,7]
 # Window size in BadPixStep [3,5,7,9,11]
