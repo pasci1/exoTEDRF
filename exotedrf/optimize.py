@@ -251,40 +251,26 @@ def cost_function(st3, baseline_ints=None, wave_range=None, tol=0.001):
     w1, w2 = 0.0, 1.0
 
     if 'niriss' in obs_early:
-        flux_O1 = np.asarray(st3['Flux O1'], float)
-        flux_O2 = np.asarray(st3['Flux O2'], float)
-        wave_O1 = np.asarray(st3['Wave O1'], float)
-        wave_O2 = np.asarray(st3['Wave O2'], float)
+        flux_O1 = np.asarray(st3['Flux O1'], float)  # (537, 2048)
+        flux_O2 = np.asarray(st3['Flux O2'], float)  # (537, 2048)
+        wave_O1 = np.asarray(st3['Wave O1'], float)  # (2048,)
+        wave_O2 = np.asarray(st3['Wave O2'], float)  # (2048,)
 
-        print(f"len wave_O1 vs flux_O1: {len(wave_O1)} vs {len(flux_O1)}")
-        print(f"len wave_O2 vs flux_O2: {len(wave_O2)} vs {len(flux_O2)}")
-
-        print('flux_O1 :', flux_O1)
-        print('flux_O1.shape :', flux_O1.shape)
-        print('flux_O2 :', flux_O2)
-        print('flux_O2.shape :', flux_O2.shape)
-        print('wave_O1 :', wave_O1)
-        print('wave_O1.shape :', wave_O1.shape)
-        print('wave_O2 :', wave_O2)
-        print('wave_O2.shape :', wave_O2.shape)
-
-
-        # pick cutoff
         cutoff = 0.85
 
-        # boolean masks
-        mask1 = wave_O1 <= cutoff
-        mask2 = wave_O2 > cutoff
+        # find index of last O1 wavelength <= cutoff
+        idx1 = np.max(np.where(wave_O1 <= cutoff))
+        # find index of first O2 wavelength > cutoff
+        idx2 = np.min(np.where(wave_O2 > cutoff))
 
-        # stack and sort just in case
-        wave = np.concatenate([wave_O1[mask1], wave_O2[mask2]])
-        flux = np.concatenate([flux_O1[mask1], flux_O2[mask2]])
+        # stack
+        wave = np.concatenate([wave_O1[:idx1+1], wave_O2[idx2:]])
+        flux = np.concatenate([flux_O1[:, :idx1+1], flux_O2[:, idx2:]], axis=1)
 
-        # ensure ascending order
+        # sort just in case (should already be ordered)
         sort_idx = np.argsort(wave)
         wave = wave[sort_idx]
-        flux = flux[sort_idx]
-
+        flux = flux[:, sort_idx]
 
     else:
         flux = np.asarray(st3['Flux'], float)
