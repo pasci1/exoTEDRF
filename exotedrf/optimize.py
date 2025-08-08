@@ -847,7 +847,7 @@ def main():
                     soss_background_model=run_cfg['soss_background_file'],
                     baseline_ints=run_cfg['baseline_ints'],
                     save_results=True,
-                    force_redo=False, 
+                    force_redo=True, 
                     space_thresh=run_cfg['space_outlier_threshold'],
                     time_thresh=run_cfg['time_outlier_threshold'],
                     remove_components=run_cfg['remove_components'],
