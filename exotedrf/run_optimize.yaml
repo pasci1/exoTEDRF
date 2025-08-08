@@ -124,7 +124,7 @@ wave_range : null # Wave range in μm where the cost function should be evaluate
 wave_range_plot : null  # Wave range to plot the scatter in μm.
 ylim_plot : null    # y-axis to plot the scatter in ppm.
 
-# All the following parameter are either a List [a,b,...] to sweep over, or an Integer c to set as Default.
+# All the following parameter are either a List [a,b,...] (if optimize = True) to sweep over, or an Integer c to set as Default.
 
 # ===== Stage 1 parameter to sweep =====
 # (SOSS only) For 1/f correction; width, in pixels, of inner trace mask.
@@ -152,21 +152,21 @@ optimize_miri_background_width : False
 miri_background_width : 14
 # For outlier detection; sigma threshold for a pixel to be flagged as an outlier, spatially. [5,6,7,8,9,10,11,12,13,14,15]
 optimize_space_outlier_threshold : True
-space_outlier_threshold : 5 #[5,6,7,8,9,10,11]
+space_outlier_threshold : [5,6,7,8,9,10,11]
 # For outlier detection; sigma threshold for a pixel to be flagged as an outlier, temporally. [5,6,7,8,9,10,11,12,13,14,15]
 optimize_time_outlier_threshold : True
 time_outlier_threshold : [5,6,7,8,9,10,11]
 # Box size in BadPixStep [2,3,4,5,6,7,8]
 optimize_box_size : True
-box_size : 7 # [3,4,5,6,7]
+box_size : [3,4,5,6,7]
 # Window size in BadPixStep [3,5,7,9,11]
 optimize_window_size : True
-window_size : 3 # [3,5,7,9,11]
+window_size :  [3,5,7,9,11]
 
 # ===== Stage 3 parameter to sweep =====
 # Box width to extract around the trace center. Passing 'optimize' will find and use the aperture width that minimizes
 # the white light curve scatter.[3,4,5,6,7,8,9,10]
 optimize_extract_width : True
-extract_width : 10 # [4,5,6,7,8,9,10]
+extract_width : [4,5,6,7,8,9,10]
 
 # ========================= END DMS CONFIG FILE =============================
