@@ -381,8 +381,31 @@ def diagnostic_plot(st3, name_str, baseline_ints, outdir=outdir_f):
     os.makedirs(outdir, exist_ok=True)
 
     # grab the flux array
-    flux = np.asarray(st3['Flux'], dtype=float)
-    wave = np.asarray(st3['Wave'], dtype=float)
+    if 'niriss' in obs_early:
+        flux_O1 = np.asarray(st3['Flux O1'], float)  # (537, 2048)
+        flux_O2 = np.asarray(st3['Flux O2'], float)  # (537, 2048)
+        wave_O1 = np.asarray(st3['Wave O1'], float)  # (2048,)
+        wave_O2 = np.asarray(st3['Wave O2'], float)  # (2048,)
+
+        cutoff = 0.85
+
+        # find index of last O1 wavelength <= cutoff
+        idx1 = np.max(np.where(wave_O1 <= cutoff))
+        # find index of first O2 wavelength > cutoff
+        idx2 = np.min(np.where(wave_O2 > cutoff))
+
+        # stack
+        wave = np.concatenate([wave_O1[:idx1+1], wave_O2[idx2:]])
+        flux = np.concatenate([flux_O1[:, :idx1+1], flux_O2[:, idx2:]], axis=1)
+
+        # sort just in case (should already be ordered)
+        sort_idx = np.argsort(wave)
+        wave = wave[sort_idx]
+        flux = flux[:, sort_idx]
+
+    else:
+        flux = np.asarray(st3['Flux'], float)
+        wave = np.asarray(st3['Wave'], float)
 
     # ---  white light curve ---
     white = np.nansum(flux, axis=1)
