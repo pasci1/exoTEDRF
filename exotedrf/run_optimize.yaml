@@ -126,10 +126,11 @@ centroids : None
 do_plots : False
 
 # ===== Optimize =====
-wave_range : null
-wave_range_plot : null
-ylim_plot : [0,5000]
-# either a List [a,b,...] to sweep over or an Integer c to set as Default
+wave_range : null # Wave range in μm where the cost function should be evaluated.
+wave_range_plot : null  # Wave range to plot the scatter in μm.
+ylim_plot : [0,5000]    # y-axis to plot the scatter in ppm.
+
+# All the following parameter are either a List [a,b,...] to sweep over, or an Integer c to set as Default.
 
 # ===== Stage 1 parameter to sweep =====
 # (SOSS only) For 1/f correction; width, in pixels, of inner trace mask.
