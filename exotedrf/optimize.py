@@ -910,7 +910,7 @@ def main():
                     nirspec_mask_width=run_cfg['nirspec_mask_width'],
                     pixel_masks=run_cfg['outlier_maps'],
                     generate_order0_mask=run_cfg['generate_order0_mask'],
-                    f277w=run_cfg['f277w'],
+                    f277w=run_cfg['f277w'], 
                     do_plot=False,
                     centroids=run_cfg['centroids'],
                     miri_trace_width=run_cfg['miri_trace_width'],
