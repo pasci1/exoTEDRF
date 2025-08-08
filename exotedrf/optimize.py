@@ -251,26 +251,33 @@ def cost_function(st3, baseline_ints=None, wave_range=None, tol=0.001):
     w1, w2 = 0.0, 1.0
 
     if 'niriss' in obs_early:
-        flux_O1 = np.asarray(st3['Flux O1'], float)  # (537, 2048)
-        flux_O2 = np.asarray(st3['Flux O2'], float)  # (537, 2048)
+        flux_O1 = np.asarray(st3['Flux O1'], float)  # (nint, 2048)
+        flux_O2 = np.asarray(st3['Flux O2'], float)  # (nint, 2048)
         wave_O1 = np.asarray(st3['Wave O1'], float)  # (2048,)
         wave_O2 = np.asarray(st3['Wave O2'], float)  # (2048,)
 
         cutoff = 0.85
 
-        # find index of last O1 wavelength <= cutoff
-        idx1 = np.max(np.where(wave_O1 <= cutoff))
-        # find index of first O2 wavelength > cutoff
-        idx2 = np.min(np.where(wave_O2 > cutoff))
+        # O2 up to and including cutoff
+        i2 = np.where(wave_O2 <= cutoff)[0]
+        # O1 strictly above cutoff
+        i1 = np.where(wave_O1 >  cutoff)[0]
 
-        # stack
-        wave = np.concatenate([wave_O1[:idx1+1], wave_O2[idx2:]])
-        flux = np.concatenate([flux_O1[:, :idx1+1], flux_O2[:, idx2:]], axis=1)
+        if i2.size == 0 or i1.size == 0:
+            raise ValueError("Cutoff produces empty segment: "
+                            f"O2<= {cutoff}: {i2.size}, O1> {cutoff}: {i1.size}")
 
-        # sort just in case (should already be ordered)
-        sort_idx = np.argsort(wave)
-        wave = wave[sort_idx]
-        flux = flux[:, sort_idx]
+        idx2 = i2[-1]   # last index in O2 <= cutoff
+        idx1 = i1[0]    # first index in O1 > cutoff
+
+        # stack along wavelength axis (columns)
+        wave = np.concatenate([wave_O2[:idx2+1],        wave_O1[idx1:]])
+        flux = np.concatenate([flux_O2[:, :idx2+1],     flux_O1[:, idx1:]], axis=1)
+
+        # optional: sort by wavelength (safe even if already ordered)
+        s = np.argsort(wave)
+        wave = wave[s]
+        flux = flux[:, s]
 
     else:
         flux = np.asarray(st3['Flux'], float)
@@ -382,26 +389,33 @@ def diagnostic_plot(st3, name_str, baseline_ints, outdir=outdir_f):
 
     # grab the flux array
     if 'niriss' in obs_early:
-        flux_O1 = np.asarray(st3['Flux O1'], float)  # (537, 2048)
-        flux_O2 = np.asarray(st3['Flux O2'], float)  # (537, 2048)
+        flux_O1 = np.asarray(st3['Flux O1'], float)  # (nint, 2048)
+        flux_O2 = np.asarray(st3['Flux O2'], float)  # (nint, 2048)
         wave_O1 = np.asarray(st3['Wave O1'], float)  # (2048,)
         wave_O2 = np.asarray(st3['Wave O2'], float)  # (2048,)
 
         cutoff = 0.85
 
-        # find index of last O1 wavelength <= cutoff
-        idx1 = np.max(np.where(wave_O1 <= cutoff))
-        # find index of first O2 wavelength > cutoff
-        idx2 = np.min(np.where(wave_O2 > cutoff))
+        # O2 up to and including cutoff
+        i2 = np.where(wave_O2 <= cutoff)[0]
+        # O1 strictly above cutoff
+        i1 = np.where(wave_O1 >  cutoff)[0]
 
-        # stack
-        wave = np.concatenate([wave_O1[:idx1+1], wave_O2[idx2:]])
-        flux = np.concatenate([flux_O1[:, :idx1+1], flux_O2[:, idx2:]], axis=1)
+        if i2.size == 0 or i1.size == 0:
+            raise ValueError("Cutoff produces empty segment: "
+                            f"O2<= {cutoff}: {i2.size}, O1> {cutoff}: {i1.size}")
 
-        # sort just in case (should already be ordered)
-        sort_idx = np.argsort(wave)
-        wave = wave[sort_idx]
-        flux = flux[:, sort_idx]
+        idx2 = i2[-1]   # last index in O2 <= cutoff
+        idx1 = i1[0]    # first index in O1 > cutoff
+
+        # stack along wavelength axis (columns)
+        wave = np.concatenate([wave_O2[:idx2+1],        wave_O1[idx1:]])
+        flux = np.concatenate([flux_O2[:, :idx2+1],     flux_O1[:, idx1:]], axis=1)
+
+        # optional: sort by wavelength (safe even if already ordered)
+        s = np.argsort(wave)
+        wave = wave[s]
+        flux = flux[:, s]
 
     else:
         flux = np.asarray(st3['Flux'], float)
