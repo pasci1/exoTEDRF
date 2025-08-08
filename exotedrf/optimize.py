@@ -73,6 +73,8 @@ utils.verify_path('pipeline_outputs_directory/Stage4')
 # plot cost
 # ----------------------------------------
 
+
+    
 def plot_cost(name_str, table_height=0.4):
     # Load data
     df = pd.read_csv(f"pipeline_outputs_directory/Files/Cost_{name_str}.txt", delimiter="\t")
@@ -194,7 +196,7 @@ def plot_cost(name_str, table_height=0.4):
 
 # ----------------------------------------
 # create filenames
-# ----------------------------------------
+# ---------------------------------------- 
 
 def make_step_filenames(input_files, output_dir, step_tag):
     """
@@ -215,6 +217,10 @@ def make_step_filenames(input_files, output_dir, step_tag):
 # ----------------------------------------
 # cost (P2P-based)
 # ----------------------------------------
+
+obs_early = cfg_early['observing_mode'].lower()
+
+
 
 def cost_function(st3, baseline_ints=None, wave_range=None, tol=0.001):
     """
@@ -243,8 +249,37 @@ def cost_function(st3, baseline_ints=None, wave_range=None, tol=0.001):
 
     # unpack & weights
     w1, w2 = 0.0, 1.0
-    flux = np.asarray(st3['Flux'], float)
-    wave = np.asarray(st3['Wave'], float)
+
+    if 'niriss' in obs_early:
+        flux_O1 = np.asarray(st3['Flux O1'], float)
+        flux_O2 = np.asarray(st3['Flux O2'], float)
+        wave_O1 = np.asarray(st3['Wave O1'], float)
+        wave_O2 = np.asarray(st3['Wave O2'], float)
+
+        # pick cutoff
+        cutoff = 0.85
+
+        # boolean masks
+        mask1 = wave_O1 <= cutoff
+        mask2 = wave_O2 > cutoff
+
+        # stack and sort just in case
+        wave = np.concatenate([wave_O1[mask1], wave_O2[mask2]])
+        flux = np.concatenate([flux_O1[mask1], flux_O2[mask2]])
+
+        # ensure ascending order
+        sort_idx = np.argsort(wave)
+        wave = wave[sort_idx]
+        flux = flux[sort_idx]
+
+
+    else:
+        flux = np.asarray(st3['Flux'], float)
+        wave = np.asarray(st3['Wave'], float)
+
+
+
+
 
     # --- white-light term ---
     white      = np.nansum(flux, axis=1)
@@ -818,9 +853,9 @@ def main():
                         superbias_method=run_cfg['superbias_method'],
                         soss_timeseries=run_cfg['soss_timeseries'],
                         soss_timeseries_o2=run_cfg['soss_timeseries_o2'],
-                        save_results=run_cfg['save_results'],
+                        save_results=True,
                         pixel_masks=run_cfg['outlier_maps'],
-                        force_redo=True, 
+                        force_redo=False, 
                         flag_up_ramp=run_cfg['flag_up_ramp'],
                         rejection_threshold=run_cfg['jump_threshold'],
                         flag_in_time=run_cfg['flag_in_time'],
@@ -855,7 +890,7 @@ def main():
                         mode=run_cfg['observing_mode'],
                         soss_background_model=run_cfg['soss_background_file'],
                         baseline_ints=run_cfg['baseline_ints'],
-                        save_results=run_cfg['save_results'],
+                        save_results=True,
                         force_redo=True, 
                         space_thresh=run_cfg['space_outlier_threshold'],
                         time_thresh=run_cfg['time_outlier_threshold'],
@@ -903,7 +938,7 @@ def main():
                     this_centroid = cfg['centroids'] if cfg['centroids'] is not None else centroids
                     stage3_results = run_stage3(
                         stage2_results,
-                        save_results=run_cfg['save_results'],
+                        save_results=True,
                         force_redo=True,
                         extract_method=run_cfg['extract_method'],
                         soss_specprofile=run_cfg['soss_specprofile'],
@@ -943,7 +978,7 @@ def main():
                             superbias_method=run_cfg['superbias_method'],
                             soss_timeseries=run_cfg['soss_timeseries'],
                             soss_timeseries_o2=run_cfg['soss_timeseries_o2'],
-                            save_results=run_cfg['save_results'],
+                            save_results=True,
                             pixel_masks=run_cfg['outlier_maps'],
                             force_redo=True,
                             flag_up_ramp=run_cfg['flag_up_ramp'],
@@ -979,7 +1014,7 @@ def main():
                             mode=run_cfg['observing_mode'],
                             soss_background_model=run_cfg['soss_background_file'],
                             baseline_ints=run_cfg['baseline_ints'],
-                            save_results=run_cfg['save_results'],
+                            save_results=True,
                             force_redo=True,
                             space_thresh=run_cfg['space_outlier_threshold'],
                             time_thresh=run_cfg['time_outlier_threshold'],
@@ -1024,7 +1059,7 @@ def main():
                         this_centroid = cfg['centroids'] if cfg['centroids'] is not None else centroids
                         stage3_results = run_stage3(
                             stage2_results,
-                            save_results=run_cfg['save_results'],
+                            save_results=True,
                             force_redo=True,
                             extract_method=run_cfg['extract_method'],
                             soss_specprofile=run_cfg['soss_specprofile'],
@@ -1066,7 +1101,7 @@ def main():
                             superbias_method=run_cfg['superbias_method'],
                             soss_timeseries=run_cfg['soss_timeseries'],
                             soss_timeseries_o2=run_cfg['soss_timeseries_o2'],
-                            save_results=run_cfg['save_results'],
+                            save_results=True,
                             pixel_masks=run_cfg['outlier_maps'],
                             force_redo=True,
                             flag_up_ramp=run_cfg['flag_up_ramp'],
@@ -1103,7 +1138,7 @@ def main():
                             mode=run_cfg['observing_mode'],
                             soss_background_model=run_cfg['soss_background_file'],
                             baseline_ints=run_cfg['baseline_ints'],
-                            save_results=run_cfg['save_results'],
+                            save_results=True,
                             force_redo=True,
                             space_thresh=run_cfg['space_outlier_threshold'],
                             time_thresh=run_cfg['time_outlier_threshold'],
@@ -1149,7 +1184,7 @@ def main():
                         this_centroid = cfg['centroids'] if cfg['centroids'] is not None else centroids
                         stage3_results = run_stage3(
                             stage2_results,
-                            save_results=run_cfg['save_results'],
+                            save_results=True,
                             force_redo=True,
                             extract_method=run_cfg['extract_method'],
                             soss_specprofile=run_cfg['soss_specprofile'],
@@ -1186,7 +1221,7 @@ def main():
                             filenames_int3,
                             mode=run_cfg['observing_mode'],
                             baseline_ints=run_cfg['baseline_ints'],
-                            save_results=run_cfg['save_results'],
+                            save_results=True,
                             force_redo=True,
                             space_thresh=run_cfg['space_outlier_threshold'],
                             time_thresh=run_cfg['time_outlier_threshold'],
@@ -1232,7 +1267,7 @@ def main():
                         this_centroid = cfg['centroids'] if cfg['centroids'] is not None else centroids
                         stage3_results = run_stage3(
                             stage2_results,
-                            save_results=run_cfg['save_results'],
+                            save_results=True,
                             force_redo=True,
                             extract_method=run_cfg['extract_method'],
                             soss_specprofile=run_cfg['soss_specprofile'],
@@ -1267,7 +1302,7 @@ def main():
                             filenames_int4,
                             mode=run_cfg['observing_mode'],
                             baseline_ints=run_cfg['baseline_ints'],
-                            save_results=run_cfg['save_results'],
+                            save_results=True,
                             force_redo=True,
                             space_thresh=run_cfg['space_outlier_threshold'],
                             time_thresh=run_cfg['time_outlier_threshold'],
@@ -1313,7 +1348,7 @@ def main():
                         this_centroid = cfg['centroids'] if cfg['centroids'] is not None else centroids
                         stage3_results = run_stage3(
                             stage2_results,
-                            save_results=run_cfg['save_results'],
+                            save_results=True,
                             force_redo=True,
                             extract_method=run_cfg['extract_method'],
                             soss_specprofile=run_cfg['soss_specprofile'],
@@ -1417,7 +1452,7 @@ def main():
         filenames_int4,
         mode=final_cfg['observing_mode'],
         baseline_ints=final_cfg['baseline_ints'],
-        save_results=final_cfg['save_results'],
+        save_results=True,
         force_redo=True,
         space_thresh=final_cfg['space_outlier_threshold'],
         time_thresh=final_cfg['time_outlier_threshold'],
@@ -1454,7 +1489,7 @@ def main():
  
     stage3_results = run_stage3(
         stage2_results, 
-        save_results=final_cfg['save_results'],
+        save_results=True,
         force_redo=True,
         extract_method=final_cfg['extract_method'],
         soss_specprofile=final_cfg['soss_specprofile'],
