@@ -198,20 +198,42 @@ def plot_cost(name_str, table_height=0.4):
 # create filenames
 # ---------------------------------------- 
 
-def make_step_filenames(input_files, output_dir, step_tag):
+
+def make_step_filenames(input_files, output_dir, possible_steps, 
+                        output_dir_2nd=None, possible_steps_2nd=None):
     """
-    Given a list of JWST‐style filenames, replace everything after the
-    last '_' (the “step” part) with your new step_tag, and stick them
-    into output_dir.
+    Search for files in output_dir matching any of the given step suffixes.
+    If found, return regenerated filenames aligned to input_files.
+    If not found and a second dir/list are given, search there.
+    If still nothing, raise FileNotFoundError.
     """
-    out = []
-    for f in input_files:
-        base = os.path.basename(f)
-        # chop off the last “_something.fits” bit
-        base_root = base[: base.rfind("_") ]
-        new_name = f"{base_root}_{step_tag}.fits"
-        out.append(os.path.join(output_dir, new_name))
-    return out
+
+    def _regen(dirpath, step):
+        out = []
+        for f in input_files:
+            base = os.path.basename(f)
+            root = base[: base.rfind("_")]
+            out.append(os.path.join(dirpath, f"{root}_{step}.fits"))
+        return out
+
+    # 1) primary search
+    for step in possible_steps:
+        if glob.glob(os.path.join(output_dir, f"*_{step}.fits")):
+            print(f"Found step '{step}' in {output_dir}")
+            return _regen(output_dir, step)
+
+    # 2) secondary search
+    if output_dir_2nd and possible_steps_2nd:
+        for step in possible_steps_2nd:
+            if glob.glob(os.path.join(output_dir_2nd, f"*_{step}.fits")):
+                print(f"Found step '{step}' in {output_dir_2nd}")
+                return _regen(output_dir_2nd, step)
+
+    # 3) nothing → error
+    raise FileNotFoundError(
+        f"No matching step files found in '{output_dir}'"
+        + (f" or '{output_dir_2nd}'" if output_dir_2nd else "")
+    )
 
 
 # ----------------------------------------
@@ -687,6 +709,7 @@ def main():
 
 
     # Generate filenames for intermediate outputs
+    """
     filenames_int1 = make_step_filenames(input_files, outdir_s1, "darkcurrentstep")
     filenames_int2 = make_step_filenames(input_files, outdir_s1, "linearitystep")
     filenames_int3 = make_step_filenames(input_files, outdir_s1, "gainscalestep")
@@ -696,6 +719,7 @@ def main():
     print("➡ will reuse these filenames_int2:", filenames_int2)
     print("➡ will reuse these filenames_int3:", filenames_int3)
     print("➡ will reuse these filenames_int4:", filenames_int4)
+    """
 
 
 
@@ -813,7 +837,7 @@ def main():
 
             if best_cost is None:
                 # ===== Stage 1 =====
-                always_skip1 = ['JumpStep', 'TEST']
+                always_skip1 = []
                 stage1_skip = get_stage_skips(
                     cfg,
                     stage1_steps,
@@ -821,7 +845,7 @@ def main():
                     special_one_over_f=True
                 )
 
-                print("\n\n\n############################################stage1_skip : ", stage1_skip)
+    
                 
                 stage1_results = run_stage1(
                     input_files,
@@ -863,7 +887,7 @@ def main():
                 ) 
 
                
-                stage2_results = run_stage2(
+                stage2_results, centroids = run_stage2(
                     stage1_results,
                     mode=run_cfg['observing_mode'],
                     soss_background_model=run_cfg['soss_background_file'],
@@ -895,7 +919,7 @@ def main():
                     **run_cfg.get('stage2_kwargs', {}),
                     **s2_args
                 )
-                stage2_results, centroids = stage2_results
+                
                 if isinstance(centroids, np.ndarray):
                     centroids = pd.DataFrame(centroids.T, columns=["xpos","ypos"])
 
@@ -932,9 +956,9 @@ def main():
 
             
             else:
-                if key in ('nirspec_mask_width', 'soss_inner_mask_width', 'soss_outer_mask_width', 'miri_trace_width'):
+                if key in ('nirspec_mask_width', 'soss_inner_mask_width', 'soss_outer_mask_width'):
                     # --- Stage 1 on darkcurrent‐stepped files ---
-                    always_skip1 = ['DQInitStep', 'SaturationStep', 'DarkCurrentStep']
+                    always_skip1 = ['DQInitStep', 'EmiCorrStep', 'SaturationStep','ResetStep','SuperBiasStep','RefPixStep', 'DarkCurrentStep']
                     stage1_skip = get_stage_skips(
                         cfg,
                         stage1_steps,
@@ -942,6 +966,17 @@ def main():
                         special_one_over_f=True
                     )
                     
+                    possible_steps_int1 = ["darkcurrentstep", "refpixstep", "superbiasstep", 'resetstep','saturationstep','emicorrstep','dqinitstep']
+
+                    filenames_int1 = make_step_filenames(
+                        input_files,
+                        output_dir=outdir_s1,
+                        possible_steps=possible_steps_int1
+                    )
+
+
+
+
                     stage1_results = run_stage1(
                         filenames_int1,
                         mode=run_cfg['observing_mode'],
@@ -1049,7 +1084,7 @@ def main():
                 elif key in ('time_jump_threshold', 'jump_threshold','time_rejection_threshold', 'time_window'):
 
                     # --- Stage 1 on the “linearized” intermediates ---
-                    always_skip1 = ['DQInitStep', 'SaturationStep', 'DarkCurrentStep',
+                    always_skip1 = ['DQInitStep', 'EmiCorrStep', 'SaturationStep','ResetStep','SuperBiasStep','RefPixStep', 'DarkCurrentStep',
                                     'OneOverFStep', 'LinearityStep']
                     stage1_skip = get_stage_skips(
                         cfg,
@@ -1057,6 +1092,14 @@ def main():
                         always_skip=always_skip1,
                         special_one_over_f=True
                     )
+
+                    possible_steps_int2 = ['linearitystep','oneoverfstep',"darkcurrentstep", "refpixstep", "superbiasstep", 'resetstep','saturationstep','emicorrstep','dqinitstep']
+
+                    filenames_int2 = make_step_filenames(
+                        input_files,
+                        output_dir=outdir_s1,
+                        possible_steps=possible_steps_int2,
+                    )                    
 
                     
                     stage1_results = run_stage1(
@@ -1164,12 +1207,13 @@ def main():
                         **run_cfg.get('stage3_kwargs', {}),
                         **s3_args
                     )
-                   
 
 
-                elif key in ('space_outlier_threshold', 'space_thresh', 'time_outlier_threshold', 'time_thresh','box_size', 'window_size', 'miri_background_width'):
+
+
+                elif key in ('miri_trace_width', 'miri_background_width'):
                     # Stage 2 on precomputed Stage-1 intermediates (filenames_int3)
-                    always_skip2 = []
+                    always_skip2 = ['AssignWCSStep', 'Extract2DStep', 'SourceTypeStep', 'WaveCorrStep', 'FlatFieldStep']
                     stage2_skip = get_stage_skips(
                         cfg,
                         stage2_steps,
@@ -1177,9 +1221,117 @@ def main():
                         special_one_over_f=False
                     )
 
+
+                    possible_steps_int3 = ['flatfieldstep','wavecorrstep','sourcetypestep','extract2dstep','assignwcsstep']
+
+                    filenames_int3 = make_step_filenames(
+                        input_files,
+                        output_dir=outdir_s2,   # Stage 2 outputs
+                        possible_steps=possible_steps_int3,
+                        output_dir_2nd=outdir_s1,   # Fall back to Stage 1 outputs
+                        possible_steps_2nd=["gainscalestep", 'rampfitstep', 'jumpstep']
+                    )
+
+
                    
                     stage2_results, centroids = run_stage2(
                         filenames_int3,
+                        mode=run_cfg['observing_mode'],
+                        baseline_ints=run_cfg['baseline_ints'],
+                        save_results=True,
+                        force_redo=True,
+                        space_thresh=run_cfg['space_outlier_threshold'],
+                        time_thresh=run_cfg['time_outlier_threshold'],
+                        remove_components=run_cfg['remove_components'],
+                        pca_components=run_cfg['pca_components'],
+                        soss_timeseries=run_cfg['soss_timeseries'],
+                        soss_timeseries_o2=run_cfg['soss_timeseries_o2'],
+                        oof_method=run_cfg['oof_method'],
+                        output_tag=run_cfg['output_tag'],
+                        smoothing_scale=run_cfg['smoothing_scale'],
+                        skip_steps=stage2_skip,
+                        generate_lc=run_cfg['generate_lc'],
+                        soss_inner_mask_width=run_cfg['soss_inner_mask_width'],
+                        soss_outer_mask_width=run_cfg['soss_outer_mask_width'],
+                        nirspec_mask_width=run_cfg['nirspec_mask_width'],
+                        pixel_masks=run_cfg['outlier_maps'],
+                        generate_order0_mask=run_cfg['generate_order0_mask'],
+                        f277w=run_cfg['f277w'],
+                        do_plot=False,
+                        centroids=run_cfg['centroids'],
+                        miri_trace_width=run_cfg['miri_trace_width'],
+                        miri_background_width=run_cfg['miri_background_width'],
+                        miri_background_method=run_cfg['miri_background_method'],
+                        **run_cfg.get('stage2_kwargs', {}),
+                        **s2_args
+                    )
+                    if isinstance(centroids, np.ndarray):
+                        centroids = pd.DataFrame(centroids.T, columns=["xpos","ypos"])                        
+    
+                    # Stage 3
+                    always_skip3 = []
+                    stage3_skip = get_stage_skips(
+                        cfg,
+                        stage3_steps,
+                        always_skip=always_skip3,
+                        special_one_over_f=False
+                    )
+
+                    this_centroid = cfg['centroids'] if cfg['centroids'] is not None else centroids
+                    stage3_results = run_stage3(
+                        stage2_results,
+                        save_results=True,
+                        force_redo=True,
+                        extract_method=run_cfg['extract_method'],
+                        soss_specprofile=run_cfg['soss_specprofile'],
+                        centroids=this_centroid,
+                        extract_width=run_cfg['extract_width'],
+                        st_teff=run_cfg['st_teff'],
+                        st_logg=run_cfg['st_logg'],
+                        st_met=run_cfg['st_met'],
+                        planet_letter=run_cfg['planet_letter'],
+                        output_tag=run_cfg['output_tag'],
+                        do_plot=False,
+                        skip_steps=stage3_skip,
+                        **run_cfg.get('stage3_kwargs', {}),
+                        **s3_args
+                    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+                elif key in ('space_outlier_threshold', 'space_thresh', 'time_outlier_threshold', 'time_thresh','box_size', 'window_size'):
+                    # Stage 2 on precomputed Stage-1 intermediates (filenames_int3)
+                    always_skip2 =  ['AssignWCSStep', 'Extract2DStep', 'SourceTypeStep', 'WaveCorrStep', 'FlatFieldStep','BackgroundStep','OneOverFStep']
+                    stage2_skip = get_stage_skips(
+                        cfg,
+                        stage2_steps,
+                        always_skip=always_skip2,
+                        special_one_over_f=False
+                    )
+
+                    possible_steps_int4 = ['oneoverfstep','backgroundstep','flatfieldstep','wavecorrstep','sourcetypestep','extract2dstep','assignwcsstep']
+
+                    filenames_int4 = make_step_filenames(
+                        input_files,
+                        output_dir=outdir_s2,   # Stage 2 outputs
+                        possible_steps=possible_steps_int4,
+                        output_dir_2nd=outdir_s1,   # Fall back to Stage 1 outputs
+                        possible_steps_2nd=["gainscalestep", 'rampfitstep', 'jumpstep']
+                    )                    
+
+                   
+                    stage2_results, centroids = run_stage2(
+                        filenames_int4,
                         mode=run_cfg['observing_mode'],
                         baseline_ints=run_cfg['baseline_ints'],
                         save_results=True,
@@ -1245,7 +1397,7 @@ def main():
 
                 elif key == 'extract_width':
                     # Stage 2 on precomputed Stage-1 intermediates (filenames_int4)
-                    always_skip2 = []
+                    always_skip2 =  ['AssignWCSStep', 'Extract2DStep', 'SourceTypeStep', 'WaveCorrStep', 'FlatFieldStep','BackgroundStep','OneOverFStep']
                     stage2_skip = get_stage_skips(
                         cfg,
                         stage2_steps,
@@ -1253,9 +1405,20 @@ def main():
                         special_one_over_f=False
                     )
 
+
+                    possible_steps_int5 = ['tracingstep','pcareconstructstep','badpixstep','oneoverfstep','backgroundstep','flatfieldstep','wavecorrstep','sourcetypestep','extract2dstep','assignwcsstep']
+
+                    filenames_int5 = make_step_filenames(
+                        input_files,
+                        output_dir=outdir_s2,   # Stage 2 outputs
+                        possible_steps=possible_steps_int5,
+                        output_dir_2nd=outdir_s1,   # Fall back to Stage 1 outputs
+                        possible_steps_2nd=["gainscalestep", 'rampfitstep', 'jumpstep']
+                    )                            
+
            
                     stage2_results, centroids = run_stage2(
-                        filenames_int4,
+                        filenames_int5,
                         mode=run_cfg['observing_mode'],
                         baseline_ints=run_cfg['baseline_ints'],
                         save_results=True,
@@ -1398,8 +1561,21 @@ def main():
 
     # Stage 2 on your precomputed Stage-1 outputs (filenames_int4)
     stage2_skip = []  
+
+
+    possible_steps_int6 = ['tracingstep','pcareconstructstep','badpixstep','oneoverfstep','backgroundstep','flatfieldstep','wavecorrstep','sourcetypestep','extract2dstep','assignwcsstep']
+
+    filenames_int6 = make_step_filenames(
+        input_files,
+        output_dir=outdir_s2,   # Stage 2 outputs
+        possible_steps=possible_steps_int6,
+        output_dir_2nd=outdir_s1,   # Fall back to Stage 1 outputs
+        possible_steps_2nd=["gainscalestep", 'rampfitstep', 'jumpstep']
+    )     
+
+
     stage2_results, centroids = run_stage2(
-        filenames_int4,
+        filenames_int6,
         mode=final_cfg['observing_mode'],
         baseline_ints=final_cfg['baseline_ints'],
         save_results=True,
