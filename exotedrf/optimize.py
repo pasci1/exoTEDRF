@@ -703,25 +703,23 @@ def main():
 
     # --- parameter ranges ---
     # --- pick out everything prefixed "optimize_" ---
-    optimize_cfg = {
-        k[len("optimize_"):]: v
-        for k, v in cfg.items()
-        if k.startswith("optimize_")
-    }
+    optimize_cfg = {}
+    param_ranges = {}
+    fixed_params = {} 
 
-    # sweep over lists only
-    param_ranges = {
-        name: vals
-        for name, vals in optimize_cfg.items()
-        if isinstance(vals, list)
-    }
-
-    # everything else is a fixed parameter
-    fixed_params = {
-        name: val
-        for name, val in optimize_cfg.items()
-        if not isinstance(val, list)
-    }
+    for k, v in cfg.items():
+        if k.startswith("optimize_"):
+            param_name = k[len("optimize_"):]  # e.g., "soss_inner_mask_width"
+            if v:  # True → sweep
+                vals = cfg[param_name]
+                if not isinstance(vals, list):
+                    raise ValueError(f"optimize_{param_name} is True but '{param_name}' is not a list in YAML: {vals}")
+                param_ranges[param_name] = vals
+            else:  # False → fixed
+                val = cfg[param_name]
+                if isinstance(val, list):
+                    raise ValueError(f"optimize_{param_name} is False but '{param_name}' is a list in YAML: {val}")
+                fixed_params[param_name] = val
 
     param_order = list(param_ranges.keys())
     total_steps = sum(len(v) for v in param_ranges.values())
