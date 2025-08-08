@@ -15,7 +15,7 @@ observing_mode : 'NIRISS/SOSS'
 # Type of filter or detector used. For SOSS, either 'CLEAR' or 'F277W'. For NIRSpec, either 'NRS1' or 'NRS2'.
 filter_detector : 'CLEAR'
 # Naming of the output files
-name_tag : 'P2P_spec_whole_V3' 
+name_tag : 'P2P_spec_whole_V3'   
 
 # ===== Stage 1 Input Files & Parameters =====
 # List of stage 1 steps to run or skip.
