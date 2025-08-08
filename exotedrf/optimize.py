@@ -925,7 +925,7 @@ def main():
 
             
             else:
-                if key == 'nirspec_mask_width':
+                if key in ('nirspec_mask_width', 'soss_inner_mask_width', 'soss_outer_mask_width', 'miri_trace_width'):
                     # --- Stage 1 on darkcurrent‐stepped files ---
                     always_skip1 = ['DQInitStep', 'SaturationStep', 'DarkCurrentStep']
                     stage1_skip = get_stage_skips(
@@ -1045,7 +1045,7 @@ def main():
                         stage3_results = stage2_results           
 
                     
-                elif key in ('time_jump_threshold','time_rejection_threshold', 'time_window'):
+                elif key in ('time_jump_threshold', 'jump_threshold','time_rejection_threshold', 'time_window'):
 
                     # --- Stage 1 on the “linearized” intermediates ---
                     always_skip1 = ['DQInitStep', 'SaturationStep', 'DarkCurrentStep',
@@ -1172,7 +1172,7 @@ def main():
                 
 
 
-                elif key in ('space_outlier_threshold','space_thresh','time_outlier_threshold', 'time_thresh', 'box_size', 'window_size'):
+                elif key in ('space_outlier_threshold', 'space_thresh', 'time_outlier_threshold', 'time_thresh','box_size', 'window_size', 'miri_background_width'):
                     # Stage 2 on precomputed Stage-1 intermediates (filenames_int3)
                     always_skip2 = []
                     stage2_skip = get_stage_skips(
@@ -1454,7 +1454,7 @@ def main():
     print(final_centroids)
 
     stage3_results = run_stage3(
-        stage2_results,
+        stage2_results, 
         save_results=final_cfg['save_results'],
         force_redo=True,
         extract_method=final_cfg['extract_method'],
