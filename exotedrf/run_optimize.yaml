@@ -138,7 +138,7 @@ optimize_nirspec_mask_width : False
 nirspec_mask_width : 10 # [10, 12, 14, 16, 18, 20]
 # For time domain jump detection; sigma threshold for a pixel to be flagged as an outlier. [5,6,7,8,9,10]
 optimize_time_jump_threshold : True
-time_jump_threshold : 5 #[5,6,7,8,9]
+time_jump_threshold : [5,6,7,8,9]
 # time_window in JumpStep [3,5,7,9,11]
 optimize_time_window : True
 time_window : [3,5,7,9,11]
