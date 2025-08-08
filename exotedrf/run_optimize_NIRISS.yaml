@@ -21,10 +21,10 @@ name_tag : 'P2P_spec_whole_V3'
 # List of stage 1 steps to run or skip.
 DQInitStep : 'run'
 EmiCorrStep : 'skip'       # MIRI only
-SaturationStep : 'run'
+SaturationStep : 'skip'
 ResetStep : 'skip'         # MIRI only
-SuperBiasStep : 'run'      # SOSS/NIRSpec only
-RefPixStep : 'run'         # SOSS only
+SuperBiasStep : 'skip'     # SOSS/NIRSpec only
+RefPixStep : 'skip'        # SOSS only
 DarkCurrentStep : 'run'    # SOSS/NIRSpec only
 OneOverFStep_grp : 'run'   # SOSS/NIRSpec only
 LinearityStep : 'run'

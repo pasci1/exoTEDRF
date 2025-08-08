@@ -703,7 +703,6 @@ def main():
 
     # --- parameter ranges ---
     # --- pick out everything prefixed "optimize_" ---
-    optimize_cfg = {}
     param_ranges = {}
     fixed_params = {} 
 
@@ -821,6 +820,8 @@ def main():
                     always_skip=always_skip1,
                     special_one_over_f=True
                 )
+
+                print("\n\n\n############################################stage1_skip : ", stage1_skip)
                 
                 stage1_results = run_stage1(
                     input_files,
