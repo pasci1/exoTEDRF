@@ -68,6 +68,28 @@ utils.verify_path('pipeline_outputs_directory/Stage2')
 utils.verify_path('pipeline_outputs_directory/Stage3')
 utils.verify_path('pipeline_outputs_directory/Stage4')
 
+obs_early = cfg_early['observing_mode'].lower()
+wave_range_early = cfg_early.get('wave_range', None)
+wave_range_plot_early = cfg_early.get('wave_range_plot', None)
+w1 = cfg_early.get('w1', 0.0)
+w2 = cfg_early.get('w2', 1.0)
+
+bands = {
+    'miri':   (5.0, 28.0),
+    'nirspec': (1.0, 3.7),
+    'niriss': (1.0, 2.8)
+}
+
+
+if obs_mode not in bands:
+    raise ValueError(f"Unrecognized observing_mode: {cfg_early.get('observing_mode')}")
+
+lo, hi = bands[obs_mode]
+for name, rng in (('wave_range', cfg_early.get('wave_range')),
+                  ('wave_range_plot', cfg_early.get('wave_range_plot'))):
+    if rng is not None and not (lo <= min(rng) and max(rng) <= hi):
+        raise ValueError(f"{name}={rng!r} out of allowed band [{lo}, {hi}]")
+
 
 # ----------------------------------------
 # plot cost
@@ -85,46 +107,64 @@ def plot_cost(name_str, table_height=0.4):
     # Get parameter columns (excluding duration_s and cost columns)
     param_cols = df.columns[:-2]
 
-    # Track changed parameter and labels
+    # ---------- robust sweep detection ----------
+    changed_param_per_row = [None] * len(df)
+    for i in range(1, len(df)):
+        diffs = [col for col in param_cols if df.at[i, col] != df.at[i-1, col]]
+        if len(diffs) == 1:
+            changed_param_per_row[i] = diffs[0]
+        elif len(diffs) >= 2:
+            # multiple changed → pick first by column order (stable fallback)
+            changed_param_per_row[i] = diffs[0]
+        else:
+            # no change → inherit previous if any
+            changed_param_per_row[i] = changed_param_per_row[i-1]
+
+    # If no param detected yet, try to find the first column that ever changes in the file
+    if all(v is None for v in changed_param_per_row):
+        for col in param_cols:
+            if df[col].nunique(dropna=False) > 1:
+                changed_param_per_row = [col] * len(df)
+                break
+        else:
+            # fully constant parameters → default to first column
+            changed_param_per_row = [param_cols[0]] * len(df)
+
+    # Ensure row 0 has a label
+    if len(df) >= 2:
+        changed_param_per_row[0] = changed_param_per_row[1] or param_cols[0]
+    else:
+        changed_param_per_row[0] = param_cols[0]
+
+    # Build labels and sweep boundaries
     labels = []
     sweep_lines = []
-    prev_row = None
     last_changed_param = None
-
     for idx, row in df.iterrows():
-        if prev_row is None:
-            value = int(row["nirspec_mask_width"]) if float(row["nirspec_mask_width"]).is_integer() else row["nirspec_mask_width"]
-            label = f"nirspec_mask_width={value}"
-            changed_param = "nirspec_mask_width"
-        else:
-            diffs = [col for col in param_cols if row[col] != prev_row[col]]
-            if len(diffs) == 1:
-                changed_param = diffs[0]
-            elif len(diffs) >= 2:
-                changed_param = diffs[1]
-            else:
-                changed_param = last_changed_param
+        changed_param = changed_param_per_row[idx]
+        if changed_param != last_changed_param and last_changed_param is not None:
+            sweep_lines.append(idx)
 
-            if changed_param != last_changed_param:
-                sweep_lines.append(idx)
+        value = row[changed_param]
+        # pretty-print numeric values if integral
+        try:
+            fv = float(value)
+            value = int(fv) if fv.is_integer() else fv
+        except Exception:
+            pass
 
-            value = row[changed_param]
-            if isinstance(value, (int, float)) and float(value).is_integer():
-                value = int(value)
-            label = f"{changed_param}={value}"
-
+        labels.append(f"{changed_param}={value}")
         last_changed_param = changed_param
-        labels.append(label)
-        prev_row = row
 
     df["changed_label"] = labels
 
-    # Highlight min-cost in each sweep
+    # ---------- highlight min-cost per sweep ----------
     sweep_boundaries = [0] + sweep_lines + [len(df)]
     colors = ['gray'] * len(df)
     for i in range(len(sweep_boundaries) - 1):
         start = sweep_boundaries[i]
         end = sweep_boundaries[i+1]
+        # idxmin over slice returns absolute index because iloc used first
         min_idx = df.iloc[start:end]["cost"].idxmin()
         colors[min_idx] = 'green'
 
@@ -132,43 +172,45 @@ def plot_cost(name_str, table_height=0.4):
     best_row = df.loc[df["cost"].idxmin(), param_cols.tolist() + ["cost"]].copy()
     for col in best_row.index:
         val = best_row[col]
-        if isinstance(val, (int, float)) and float(val).is_integer():
-            best_row[col] = int(val)
+        try:
+            fv = float(val)
+            best_row[col] = int(fv) if fv.is_integer() else fv
+        except Exception:
+            best_row[col] = val
     best_df = pd.DataFrame([best_row]).reset_index(drop=True)
 
-    # Create layout with two vertical rows
+    # ---------- figure layout ----------
     fig = plt.figure(figsize=(max(14, len(df) * 0.25), 10))
     gs = GridSpec(nrows=2, ncols=1, height_ratios=[1 - table_height, table_height])
     ax_plot = fig.add_subplot(gs[0])
     ax_table = fig.add_subplot(gs[1])
 
     # Main plot
-    ax_plot.scatter(df["changed_label"], df["cost"], color=colors)
+    ax_plot.scatter(range(len(df)), df["cost"].values, color=colors)
     for x in sweep_lines:
         ax_plot.axvline(x=x - 0.5, color='gray', linestyle='--', linewidth=1)
 
-    # simplify tick labels to just the value, not rotated
-    values = [lbl.split('=')[1] for lbl in df["changed_label"]]
+    # Simplify tick labels to just the value
+    values = [lbl.split('=', 1)[1] for lbl in df["changed_label"]]
     ax_plot.set_xticks(range(len(df)))
     ax_plot.set_xticklabels(values, rotation=0, fontsize=8)
 
-    # drop parameter names down by alternating offsets to avoid overlap
+    # Drop parameter names below by alternating offsets
     ymin, ymax = ax_plot.get_ylim()
     base_y = ymin - 0.08 * (ymax - ymin)
     alt_y  = ymin - 0.15 * (ymax - ymin)
     for i, (start, end) in enumerate(zip(sweep_boundaries[:-1], sweep_boundaries[1:])):
-        param_name = df.loc[start, "changed_label"].split("=")[0]
+        param_name = df.loc[start, "changed_label"].split("=", 1)[0]
         center = (start + end - 1) / 2
         y_pos = base_y if i % 2 == 0 else alt_y
         ax_plot.text(center, y_pos, param_name, ha="center", va="top", fontsize=10)
 
-    # expand bottom margin so parameter names stay visible
     fig.subplots_adjust(bottom=0.30)
 
-    ax_plot.set_ylabel("Cost, (ppm)")
+    ax_plot.set_ylabel("Cost (ppm)")
     ax_plot.set_title(f"Cost by Single Parameter Sweep: {name_str}")
 
-    # prepare the table
+    # Table
     ax_table.axis("off")
     ax_table.text(0.5, 0.65, "Best Parameters", ha="center", va="bottom", fontsize=12)
 
@@ -179,16 +221,13 @@ def plot_cost(name_str, table_height=0.4):
         loc='center'
     )
     table.scale(1.0, 1.8)
-
-    # turn off auto‐sizing globally
     table.auto_set_font_size(False)
-
-    # let the header row still auto‐size
     for (row, col), cell in table.get_celld().items():
         if row == 0:
             cell.set_fontsize(7)
         else:
             cell.set_fontsize(10)
+
     fig.savefig(f"pipeline_outputs_directory/Files/Cost_{name_str}.png", dpi=300, bbox_inches='tight')
 
 
@@ -240,11 +279,11 @@ def make_step_filenames(input_files, output_dir, possible_steps,
 # cost (P2P-based)
 # ----------------------------------------
 
-obs_early = cfg_early['observing_mode'].lower()
 
 
 
-def cost_function(st3, baseline_ints=None, wave_range=None, tol=0.001):
+
+def cost_function(st3, baseline_ints=None, wave_range=None, w1=0.0, w2=1.0, tol=0.001):
     """
     Compute a combined white-light + spectral metric.
 
@@ -269,8 +308,6 @@ def cost_function(st3, baseline_ints=None, wave_range=None, tol=0.001):
         The per-wavelength ptp2 values.
     """
 
-    # unpack & weights
-    w1, w2 = 0.0, 1.0
 
     if 'niriss' in obs_early:
         flux_O1 = np.asarray(st3['Flux O1'], float)  # (nint, 2048)
@@ -505,141 +542,116 @@ def diagnostic_plot(st3, name_str, baseline_ints, outdir=outdir_f):
 # photon noise
 # ----------------------------------------
 
-def plot_scatter_with_photon_noise(
+def plot_scatter(  # name kept for compatibility
     txtfile, rows,
     wave_range=None, smooth=None,
-    spectrum_files=None, ngroup=None, baseline_ints=None,
-    order=1, tframe=5.494, gain=1.6,
+    spectrum_files=None,
     style='line', ylim=None, save_path=None,
     tol=0.005
 ):
     """
-    1) Plot P2P scatter rows (with smoothing+clipping) vs. wavelength.
-    2) If `spectrum_files` is given, overplot photon-noise and 2× photon-noise (ppm).
+    Plot P2P scatter vs wavelength for requested rows.
 
-    Args:
-        txtfile (str): P2P scatter text file
-        rows (list[int]): rows to plot (0-based or negative)
-        wave_range (tuple, optional): (min_wave, max_wave) in same units as FITS
-        smooth (int, optional): moving-average window
-        spectrum_files (list[str]): FITS files (must include 'Wave' in ext 1)
-        ngroup (float), baseline_ints (list[int]), order (int),
-        tframe (float), gain (float): instrument parameters
-        style (str): 'line' or 'scatter'
-        ylim (tuple), save_path (str): plotting args
-        tol (float): slack around wave_range ends for selecting pixels
+    This version overlays two series for each selected row:
+    1) smoothed using the user-provided `smooth` window (if given)
+    2) raw (no smoothing)
+
+    Photon-noise curves are removed.
     """
 
-    # — Load scatter table —
-    df = pd.read_csv(txtfile, sep=r'\s+', header=None).fillna(0)
+    # --- Load scatter table ---
+    df = pd.read_csv(txtfile, sep=r'\s+', header=None).fillna(0.0)
     n_rows, n_cols = df.shape
 
-    # — Determine valid rows —
+    # --- Validate requested rows ---
     valid = []
     for r in rows:
-        idx = r if r >= 0 else n_rows + r
-        if 0 <= idx < n_rows:
-            valid.append(idx)
+        i = r if r >= 0 else n_rows + r
+        if 0 <= i < n_rows:
+            valid.append(i)
         else:
             print(f"Warning: row {r} out of range, skipping.")
     if not valid:
         raise ValueError("No valid rows to plot.")
-    labels = [str(i+1) for i in valid]
 
-    # — Load wavelength axis —
+    # --- Load wavelength grid to match scatter columns ---
     if not spectrum_files:
-        raise ValueError("`spectrum_files` is required.")
+        raise ValueError("`spectrum_files` is required to read the wavelength axis.")
     with fits.open(spectrum_files[0]) as hdus:
-        wave_full = hdus[1].data.astype(float)
-    Npix = wave_full.size
+        # Map HDU names to safe keys
+        name_map = {h.name.replace(" ", "_"): h for h in hdus if h.data is not None and h.name != "PRIMARY"}
 
-    # — Map wave_range to pixel indices via mask —
+        if ("Wave_O1" in name_map) and ("Wave_O2" in name_map):
+            wave_O1 = np.asarray(name_map["Wave_O1"].data, float)
+            wave_O2 = np.asarray(name_map["Wave_O2"].data, float)
+            cutoff = 0.85
+            i2 = np.where(np.isfinite(wave_O2) & (wave_O2 <= cutoff))[0]
+            i1 = np.where(np.isfinite(wave_O1) & (wave_O1 >  cutoff))[0]
+            if i2.size == 0 or i1.size == 0:
+                raise ValueError(f"Cutoff {cutoff} yields empty segment: O2<={i2.size}, O1>{i1.size}")
+            wave_full = np.concatenate([wave_O2[:i2[-1]+1], wave_O1[i1[0]:]])
+        else:
+            # Fall back to first extension array
+            wave_full = np.asarray(hdus[1].data, float)
+
+    # --- Ensure monotonic wavelength and align scatter columns ---
+    s = np.argsort(wave_full, kind="mergesort")
+    wave_sorted = wave_full[s]
+
+    # Length must match scatter columns
+    if wave_sorted.size != n_cols:
+        raise ValueError(f"Wavelength length {wave_sorted.size} != scatter columns {n_cols}")
+
+    # Build mask for plotting range
     if wave_range is not None:
         wmin, wmax = wave_range
-        mask_range = (
-            (wave_full >= wmin - tol) &
-            (wave_full <= wmax + tol) &
-            np.isfinite(wave_full)
-        )
-        if not mask_range.any():
-            raise ValueError(
-                f"Requested wave_range {wave_range} yields no finite pixels within ±{tol}."
-            )
-        idxs = np.where(mask_range)[0]
-        start, end = idxs.min(), idxs.max()
+        mask = np.isfinite(wave_sorted) & (wave_sorted >= wmin - tol) & (wave_sorted <= wmax + tol)
     else:
-        start, end = 0, Npix - 1
+        mask = np.isfinite(wave_sorted)
+    if not mask.any():
+        raise ValueError(f"No finite wavelengths within selected range {wave_range}.")
 
-    # — Slice wavelength and mask NaNs —
-    wave = wave_full[start:end+1]
-    mask_wave = np.isfinite(wave)
-    if not mask_wave.any():
-        raise ValueError("No finite wavelengths in the selected slice.")
+    x = wave_sorted[mask]
 
+    # --- Plot ---
     plt.figure(figsize=(8, 4))
 
-    # — Plot P2P scatter vs. wavelength —
-    for idx, lab in zip(valid, labels):
-        y_full = df.iloc[idx, :].values.astype(float)
-        if smooth and smooth > 1:
-            w = int(smooth)
-            kern = np.ones(w) / w
-            y_full = np.convolve(y_full, kern, mode='same')
-        y = y_full[start:end+1] * 1e6  # convert to ppm
-        x = wave[mask_wave]
-        y = y[mask_wave]
+    for i in valid:
+        y_full = df.iloc[i, :].to_numpy(float)
+        # reorder columns like wavelength
+        y_ord = y_full[s]
+
+        # Raw series
+        y_raw = (y_ord[mask]) * 1e6  # ppm
         if style == 'line':
-            plt.plot(x, y, linewidth=1.0, label=lab)
+            plt.plot(x, y_raw, linewidth=0.6, linestyle='-', alpha=0.5, color='grey', label="Best Parameter configuration (raw)")
         else:
-            plt.scatter(x, y, s=2, label=lab)
+            plt.scatter(x, y_raw, s=3, alpha=0.8, label="Best Parameter configuration (raw)")
 
-    # — Photon-noise overlay —
-    if spectrum_files:
-        base = format_out_frames(baseline_ints)
-        with fits.open(spectrum_files[0]) as hdus:
-            spec = hdus[3].data.astype(float) if order == 1 else hdus[7].data.astype(float)
-        spec *= (tframe * gain * ngroup)
-        ii = np.arange(spec.shape[-1])
+        # Smoothed series
+        if smooth and int(smooth) > 1:
+            w = int(smooth)
+            kern = np.ones(w, dtype=float) / w
+            y_sm_all = np.convolve(y_ord, kern, mode='same')
+            y_sm = (y_sm_all[mask]) * 1e6
+            if style == 'line':
+                plt.plot(x, y_sm, linewidth=1.0, label=f"Best Parameter configuration (smoothed:{w})")
+            else:
+                plt.scatter(x, y_sm, s=6, label=f"Best Parameter configuration (smoothed:{w})")
 
-        # Empirical scatter [ppm]
-        scatter_vals = np.full(ii.shape, np.nan)
-        for i in ii:
-            pix = spec[:, i]
-            denom = np.median(pix[base])
-            if denom > 0 and np.isfinite(denom):
-                noise = 0.5 * (pix[:-2] + pix[2:]) - pix[1:-1]
-                scatter_vals[i] = np.median(np.abs(noise)) / denom
-        data_ppm = median_filter(scatter_vals * 1e6, size=10)
-
-        # Theoretical photon floor [ppm]
-        med = np.median(spec[base], axis=0)
-        phot = np.full_like(med, np.nan)
-        good = (med > 0) & np.isfinite(med)
-        phot[good] = np.sqrt(med[good]) / med[good]
-        phot_ppm_filt = median_filter(phot, size=10)
-
-        # Overlay on wavelength
-        wn = wave_full[10:-10]
-        valid = np.isfinite(wn) & np.isfinite(phot_ppm_filt[10:-10])
-        plt.plot(wn[valid], phot_ppm_filt[10:-10][valid]*1e6,
-                 'k-', lw=1.0, label='photon noise')
-        plt.plot(wn[valid], 2*phot_ppm_filt[10:-10][valid]*1e6,
-                 'k--', lw=1.0, label='2× photon noise')
-        plt.ylabel("Precision (ppm)")
-    else:
-        plt.ylabel("Scatter")
-
-    # — Finalize —
-    plt.xlim(wave[mask_wave].min(), wave[mask_wave].max())
+    # Finish
+    plt.xlim(x.min(), x.max())
     if ylim is not None:
         plt.ylim(ylim)
     plt.xlabel("Wavelength (μm)")
-    plt.legend(ncol=2 if spectrum_files else 1, fontsize='small')
+    plt.ylabel("Scatter (ppm)")
+    plt.legend(ncol=2, fontsize='small')
     plt.tight_layout()
     if save_path:
-        plt.savefig(save_path, bbox_inches='tight')
+        plt.savefig(save_path, bbox_inches='tight', dpi=300)
         print(f"Figure saved to {save_path}")
     plt.show()
+
 
 
 # ----------------------------------------
@@ -1486,7 +1498,7 @@ def main():
             st2, st3 = stage2_results, stage3_results
 
 
-            cost, scatter = cost_function(st3, baseline_ints=baseline_ints, wave_range=wave_range)
+            cost, scatter = cost_function(st3,w1=w1,w2=w2, baseline_ints=baseline_ints, wave_range=wave_range)
             
        
 
@@ -1654,21 +1666,15 @@ def main():
     else:
         raise ValueError(f"Unrecognized observing_mode: {cfg['observing_mode']}")
 
-    plot_scatter_with_photon_noise(
+    plot_scatter(
         txtfile=outfile,
         rows=[best_idx],
         wave_range=wave_range_plot,
-        smooth=21,
+        smooth=10,
         spectrum_files=[specfile],
-        ngroup=ngroup,
-        baseline_ints=[100],
-        order=1,
-        tframe=tframe,
-        gain=gain,
         ylim = ylim_plot,
         style="line",
-        save_path=os.path.join(outdir_f, "scatter_vs_photon_noise.png"),
-        tol=0.005
+        save_path=os.path.join(outdir_f, f"Scatter_Plot_{name_str}.png"),
     )
  
 
