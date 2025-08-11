@@ -81,10 +81,10 @@ bands = {
 }
 
 
-if obs_mode not in bands:
+if obs_early not in bands:
     raise ValueError(f"Unrecognized observing_mode: {cfg_early.get('observing_mode')}")
 
-lo, hi = bands[obs_mode]
+lo, hi = bands[obs_early]
 for name, rng in (('wave_range', cfg_early.get('wave_range')),
                   ('wave_range_plot', cfg_early.get('wave_range_plot'))):
     if rng is not None and not (lo <= min(rng) and max(rng) <= hi):
