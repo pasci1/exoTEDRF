@@ -74,21 +74,25 @@ wave_range_plot_early = cfg_early.get('wave_range_plot', None)
 w1 = cfg_early.get('w1', 0.0)
 w2 = cfg_early.get('w2', 1.0)
 
+
+
 bands = {
     'miri':   (5.0, 28.0),
     'nirspec': (1.0, 3.7),
     'niriss': (1.0, 2.8)
 }
 
-
-if obs_early not in bands:
+# match like your ngroup/tframe/gain code
+for key, (lo, hi) in bands.items():
+    if key in obs_early:
+        for name, rng in (('wave_range', wave_range_early),
+                          ('wave_range_plot', wave_range_plot_early)):
+            if rng is not None and not (lo <= min(rng) and max(rng) <= hi):
+                raise ValueError(f"{name}={rng!r} out of allowed band [{lo}, {hi}]")
+        break
+else:
     raise ValueError(f"Unrecognized observing_mode: {cfg_early.get('observing_mode')}")
 
-lo, hi = bands[obs_early]
-for name, rng in (('wave_range', cfg_early.get('wave_range')),
-                  ('wave_range_plot', cfg_early.get('wave_range_plot'))):
-    if rng is not None and not (lo <= min(rng) and max(rng) <= hi):
-        raise ValueError(f"{name}={rng!r} out of allowed band [{lo}, {hi}]")
 
 
 # ----------------------------------------
