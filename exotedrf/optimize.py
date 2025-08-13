@@ -95,9 +95,9 @@ utils.verify_path('pipeline_outputs_directory/Stage4')
 
 # ======== OBSERVING CONFIG PARAMETERS ========
 # Observation mode in lowercase (e.g., 'niriss', 'nirspec', 'miri')
-obs_early = cfg_early['observing_mode'].lower()
+obs_early = (cfg_early.get('observing_mode') or '').lower()
 # Detector filter in lowercase (e.g., 'clear', 'nrs1', 'nrs2')
-filter_early = cfg_early['filter_detector'].lower()
+filter_early = (cfg_early.get('filter_detector') or '').lower()
 # Wavelength range limits for analysis and plotting (if provided in config)
 wave_range_early      = cfg_early.get('wave_range', None)
 wave_range_plot_early = cfg_early.get('wave_range_plot', None)
