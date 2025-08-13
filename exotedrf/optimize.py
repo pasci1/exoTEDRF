@@ -348,7 +348,7 @@ def make_step_filenames(input_files, output_dir, possible_steps,
 # ----------------------------------------
 # cost function (P2P-based)
 # ----------------------------------------
-def cost_function(st3, baseline_ints=None, wave_range=None, w1=0.0, w2=1.0, tol=0.001):
+def cost_function(st3, baseline_ints=None, wave_range=None, w1=0.0, w2=1.0, tol=0.05):
     """
     Compute a combined white-light + spectral P2P (point-to-point) metric.
 
@@ -645,7 +645,7 @@ def plot_scatter(
     wave_range=None, smooth=None,
     spectrum_files=None,
     style='line', ylim=None, save_path=None,
-    tol=0.005
+    tol=0.05
 ):
     """
     Plot point-to-point (P2P) scatter vs wavelength for selected rows from a scatter table.
@@ -925,18 +925,6 @@ def main():
     param_order = list(param_ranges.keys())
     total_steps = sum(len(v) for v in param_ranges.values())
 
-    # Define which parameters belong to which stage
-    stage1_keys = [
-        "rejection_threshold", "time_rejection_threshold","time_window",
-        "nirspec_mask_width", "soss_inner_mask_width",
-        "soss_outer_mask_width","miri_drop_groups",
-    ]
-    stage2_keys = [
-        "space_thresh", "time_thresh",
-        "miri_trace_width", "miri_background_width",
-    ]
-    stage3_keys = ["extract_width"]
-
     # Initialize current parameter set to median values of ranges + fixed params
     current = {k: int(np.median(v)) for k,v in param_ranges.items()}
     current.update(fixed_params)
@@ -1042,14 +1030,14 @@ def main():
                     soss_timeseries_o2=run_cfg['soss_timeseries_o2'],
                     save_results=True,
                     pixel_masks=run_cfg['outlier_maps'],           # optional pixel mask files
-                    force_redo=True,                               # force rerun even if files exist
+                    force_redo=False,                               # force rerun even if files exist
                     flag_up_ramp=run_cfg['flag_up_ramp'],          # flag groups during up-the-ramp fitting
                     rejection_threshold=run_cfg['jump_threshold'], # jump detection threshold
                     flag_in_time=run_cfg['flag_in_time'],          # time-based flagging
                     time_rejection_threshold=run_cfg['time_jump_threshold'],
                     output_tag=run_cfg['output_tag'],              # appended to filenames
                     skip_steps=stage1_skip,                        # steps to skip this run
-                    do_plot=run_cfg['do_plots'],                 # disable plots
+                    do_plot=run_cfg['do_plots'],                   #  plots
                     soss_inner_mask_width=run_cfg['soss_inner_mask_width'],
                     soss_outer_mask_width=run_cfg['soss_outer_mask_width'],
                     nirspec_mask_width=run_cfg['nirspec_mask_width'],
@@ -1080,7 +1068,7 @@ def main():
                     soss_background_model=run_cfg['soss_background_file'],
                     baseline_ints=run_cfg['baseline_ints'],
                     save_results=True,
-                    force_redo=True,
+                    force_redo=False,
                     space_thresh=run_cfg['space_outlier_threshold'],   # spatial outlier threshold
                     time_thresh=run_cfg['time_outlier_threshold'],     # temporal outlier threshold
                     remove_components=run_cfg['remove_components'],    # PCA components to remove
