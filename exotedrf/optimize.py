@@ -505,15 +505,15 @@ def diagnostic_plot(st3, name_str, baseline_ints, outdir=outdir_f):
 
     # ======== WAVELENGTH RANGE SELECTION BASED ON MODE/FILTER ========
     # obs_early and filter_early must be defined globally before calling
-    if obs_early == 'miri':
-        wave_min, wave_max = 5.0, 12.0  # µm
-    elif obs_early == 'niriss':
-        wave_min, wave_max = 0.6, 2.8   # µm
-    elif obs_early == 'nirspec':
+    if 'miri' in obs_early:
+        wave_min, wave_max = 5.0, 12.0
+    elif 'niriss' in obs_early:
+        wave_min, wave_max = 0.6, 2.8
+    elif 'nirspec' in obs_early:
         if filter_early == 'nrs1':
-            wave_min, wave_max = 2.9, None   # from 2.9 µm to end
+            wave_min, wave_max = 2.9, None
         elif filter_early == 'nrs2':
-            wave_min, wave_max = None, 2.9   # everything below 2.9 µm
+            wave_min, wave_max = None, 2.9
         else:
             raise ValueError(f"Unknown nirspec filter_detector: {filter_early}")
     else:
