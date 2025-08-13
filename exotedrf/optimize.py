@@ -853,7 +853,7 @@ def main():
     # Observation mode (Instrument mode used; e.g., 'NIRISS/SOSS', 'NIRSpec/G395H', 'MIRI/LRS'.)
     obs = (cfg.get('observing_mode') or '').lower()
     # Detector filter (Type of filter or detector used. For SOSS: 'CLEAR'/'F277W'. For NIRSpec: 'NRS1'/'NRS2'.)
-    filter = (cfg.get('filter_detector') or '').ower()
+    filter = (cfg.get('filter_detector') or '').lower()
 
     # Read key parameters from config (or use defaults)
     baseline_ints     = cfg.get('baseline_ints', [100, -100])
