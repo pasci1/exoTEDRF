@@ -949,7 +949,7 @@ def main():
 
         for trial in param_ranges[key]:
             # Report trial info
-            fancyprint(f"Step {count}/{total_steps}: {key}={trial}")
+            fancyprint(f"Iteration {count}/{total_steps}: {key}={trial}")
             trial_params = {**current, key: trial}
             run_cfg = cfg.copy()
             run_cfg.update(trial_params)
@@ -1030,7 +1030,7 @@ def main():
                     soss_timeseries_o2=run_cfg['soss_timeseries_o2'],
                     save_results=True,
                     pixel_masks=run_cfg['outlier_maps'],           # optional pixel mask files
-                    force_redo=False,                               # force rerun even if files exist
+                    force_redo=True,                               # force rerun even if files exist
                     flag_up_ramp=run_cfg['flag_up_ramp'],          # flag groups during up-the-ramp fitting
                     rejection_threshold=run_cfg['jump_threshold'], # jump detection threshold
                     flag_in_time=run_cfg['flag_in_time'],          # time-based flagging
@@ -1762,7 +1762,7 @@ def main():
         mode=final_cfg['observing_mode'],
         baseline_ints=final_cfg['baseline_ints'],
         save_results=True,
-        force_redo=True,
+        force_redo=True,  
         space_thresh=final_cfg['space_outlier_threshold'],
         time_thresh=final_cfg['time_outlier_threshold'],
         remove_components=final_cfg['remove_components'],
