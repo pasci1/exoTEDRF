@@ -116,7 +116,7 @@ output_tag : ''
 baseline_ints : [150, -100]
 # File with trace centroids for box extraction and 1/f correction (optional).
 centroids : None
-# If True, make diagnostic plots.
+# If True, make more diagnostic plots.
 do_plots : False
 
 # ===== Optimize =====
