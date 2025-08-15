@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on 
+Created on 15 August 2025
 
-@author: 
+@author: PSD
 
 Custom JWST optimizer for exoTEDRF pipeline
 """
@@ -30,7 +30,7 @@ early.add_argument(
     default="run_optimize.yaml",       # Default config file if none given
     help="Path to your DMS config YAML"
 )
-# parse_known_args() → returns parsed args plus the remaining unparsed args
+# parse_known_args() -> returns parsed args plus the remaining unparsed args
 args, remaining = early.parse_known_args()
 
 # --------------------------------------------------------
@@ -155,35 +155,48 @@ def plot_cost(name_str, table_height=0.4):
     # Get all parameter columns (exclude 'duration_s' and 'cost' at the end)
     param_cols = df.columns[:-2]
 
-    # ======== DETECT WHICH PARAMETER CHANGED PER ROW ========
+    # ======== DETECT WHICH PARAMETER CHANGED PER ROW (sweep-aware) ========
     changed_param_per_row = [None] * len(df)
-    for i in range(1, len(df)):
-        # Compare this row to the previous to see which parameter changed
-        diffs = [col for col in param_cols if df.at[i, col] != df.at[i-1, col]]
-        if len(diffs) == 1:
-            changed_param_per_row[i] = diffs[0]
-        elif len(diffs) >= 2:
-            # If multiple changed, pick first (fallback)
-            changed_param_per_row[i] = diffs[0]
+    
+    # current sweep = first differing column between row 0 and 1 (fallback to first varying col)
+    if len(df) > 1:
+        diffs01 = [c for c in param_cols if df.at[1, c] != df.at[0, c]]
+        if diffs01:
+            current_param = diffs01[0]
         else:
-            # If no change, inherit the last detected parameter
-            changed_param_per_row[i] = changed_param_per_row[i-1]
-
-    # If no change detected anywhere, pick the first column that varies in the file
-    if all(v is None for v in changed_param_per_row):
-        for col in param_cols:
-            if df[col].nunique(dropna=False) > 1:
-                changed_param_per_row = [col] * len(df)
-                break
-        else:
-            # Fully constant → default to first parameter column
-            changed_param_per_row = [param_cols[0]] * len(df)
-
-    # Ensure first row has a valid parameter label
-    if len(df) >= 2:
-        changed_param_per_row[0] = changed_param_per_row[1] or param_cols[0]
+            # fallback: first column that varies anywhere
+            vary = [c for c in param_cols if df[c].nunique(dropna=False) > 1]
+            current_param = vary[0] if vary else param_cols[0]
     else:
-        changed_param_per_row[0] = param_cols[0]
+        current_param = param_cols[0]
+    
+    changed_param_per_row[0] = current_param
+    changed_param_per_row[1 if len(df) > 1 else 0] = current_param
+    
+    # find sweep boundaries: as soon as ANY other parameter changes, the next sweep starts
+    sweep_lines = []  # indices where a new sweep begins
+    for i in range(1, len(df)):
+        diffs = [c for c in param_cols if df.at[i, c] != df.at[i-1, c]]
+        if not diffs:  # nothing changed -> stay in current sweep
+            changed_param_per_row[i] = current_param
+            continue
+    
+        if current_param in diffs and len(diffs) == 1:
+            # only the active param changed -> still same sweep
+            changed_param_per_row[i] = current_param
+        else:
+            # another param appeared (possibly with the current one reverting)
+            # new sweep starts at this row
+            new_param = next((c for c in diffs if c != current_param), diffs[0])
+            sweep_lines.append(i)
+            current_param = new_param
+            changed_param_per_row[i] = current_param
+    
+    # first row label belongs to the first detected sweep
+    if len(df) >= 2 and changed_param_per_row[0] is None:
+        changed_param_per_row[0] = changed_param_per_row[1] or param_cols[0]
+    
+    sweep_boundaries = [0] + sweep_lines + [len(df)]
 
     # ======== BUILD LABELS AND FIND SWEEP BOUNDARIES ========
     labels = []
@@ -242,7 +255,7 @@ def plot_cost(name_str, table_height=0.4):
     for x in sweep_lines:
         ax_plot.axvline(x=x - 0.5, color='gray', linestyle='--', linewidth=1)
 
-    # X-axis tick labels → just the value part of "param=value"
+    # X-axis tick labels -> just the value part of "param=value"
     values = [lbl.split('=', 1)[1] for lbl in df["changed_label"]]
     ax_plot.set_xticks(range(len(df)))
     ax_plot.set_xticklabels(values, rotation=0, fontsize=8)
@@ -338,7 +351,7 @@ def make_step_filenames(input_files, output_dir, possible_steps,
                 print(f"Found step '{step}' in {output_dir_2nd}")
                 return _regen(output_dir_2nd, step)
 
-    # 3) No match found in either directory → raise error
+    # 3) No match found in either directory -> raise error
     raise FileNotFoundError(
         f"No matching step files found in '{output_dir}'"
         + (f" or '{output_dir_2nd}'" if output_dir_2nd else "")
@@ -356,8 +369,8 @@ def cost_function(st3, baseline_ints=None, wave_range=None, w1=0.0, w2=1.0, tol=
     ----------
     st3 : dict-like
         Must contain:
-          - 'Flux' (or 'Flux O1'/'Flux O2' for NIRISS) → 2D array (n_int, n_wave)
-          - 'Wave' (or 'Wave O1'/'Wave O2') → 1D array (n_wave,)
+          - 'Flux' (or 'Flux O1'/'Flux O2' for NIRISS) -> 2D array (n_int, n_wave)
+          - 'Wave' (or 'Wave O1'/'Wave O2') -> 1D array (n_wave,)
     baseline_ints : list of 1 or 2 ints
         Integration indices defining baseline(s) for the spectral term.
     wave_range : None or [min, max]
@@ -495,8 +508,8 @@ def diagnostic_plot(st3, name_str, baseline_ints, outdir=outdir_f):
         Identifier used in output filenames.
     baseline_ints : list[int]
         One or two integers for baseline integrations:
-            [N] → normalize by median of first N integrations
-            [Nlow, Nhigh] → normalize by mean of medians of start and end segments
+            [N] -> normalize by median of first N integrations
+            [Nlow, Nhigh] -> normalize by mean of medians of start and end segments
     outdir : str
         Output directory for saved figures.
     """
@@ -941,7 +954,7 @@ def main():
     # ------------------------------------------------------
     for key in param_order:
         fancyprint(
-            f"→ Optimizing {key} "
+            f"Optimizing {key} "
             f"(fixed-other={{{', '.join(f'{k}:{current[k]}' for k in current if k!=key)}}})"
         )
         best_val  = current[key]
@@ -998,7 +1011,7 @@ def main():
 
             if best_cost is None:
                 # ======================================================
-                # First trial for this parameter → run full Stage 1 → 3
+                # First trial for this parameter -> run full Stage 1 -> 3
                 # ======================================================
 
                 # -------------------------
@@ -1037,7 +1050,7 @@ def main():
                     time_rejection_threshold=run_cfg['time_jump_threshold'],
                     output_tag=run_cfg['output_tag'],              # appended to filenames
                     skip_steps=stage1_skip,                        # steps to skip this run
-                    do_plot=run_cfg['do_plots'],                   #  plots
+                    do_plot=run_cfg['do_plots'],                   # plots
                     soss_inner_mask_width=run_cfg['soss_inner_mask_width'],
                     soss_outer_mask_width=run_cfg['soss_outer_mask_width'],
                     nirspec_mask_width=run_cfg['nirspec_mask_width'],
@@ -1661,7 +1674,7 @@ def main():
                                           baseline_ints=baseline_ints,
                                           wave_range=wave_range)
             dt = time.perf_counter() - t0
-            fancyprint(f"→ cost = {cost:.12f} in {dt:.1f}s")
+            fancyprint(f"cost = {cost:.12f} in {dt:.1f}s")
 
             logf.write(
                 "\t".join(str(trial_params[k]) for k in param_order)
@@ -1683,7 +1696,7 @@ def main():
                 "\n############################################\n",
                 flush=True
             )     
-
+ 
             count += 1
 
         # Commit best value for this parameter before moving on
@@ -1791,7 +1804,6 @@ def main():
     # Convert centroids to DataFrame if returned as numpy array
     if isinstance(centroids, np.ndarray):
         centroids = pd.DataFrame(centroids.T, columns=["xpos","ypos"])
-        print("\n\n\nit does go here", centroids)
 
     # Use config-provided centroids if available; otherwise, use output from Stage 2
     final_centroids = final_cfg['centroids'] if final_cfg['centroids'] is not None else centroids

@@ -11,22 +11,22 @@ input_dir : 'DMS_uncal/'
 # Input file tag.
 input_filetag : 'uncal'
 # Instrument mode used; e.g., 'NIRISS/SOSS', 'NIRSpec/G395H', 'MIRI/LRS'.
-observing_mode : 'MIRI/LRS'
+observing_mode : 'NIRSpec/G395H'
 # Type of filter or detector used. For SOSS, either 'CLEAR' or 'F277W'. For NIRSpec, either 'NRS1' or 'NRS2'.
-filter_detector :  
+filter_detector :  'NRS1'
 # Naming of the output files
-name_tag : 'Test_MIRI'
+name_tag : 'HAT-P-18b_NRS'
 
 # ===== Stage 1 Input Files & Parameters =====
 # List of stage 1 steps to run or skip.
 DQInitStep : 'run'
-EmiCorrStep : 'run'       # MIRI only
+EmiCorrStep : 'skip'       # MIRI only
 SaturationStep : 'run'
-ResetStep : 'run'         # MIRI only
-SuperBiasStep : 'skip'      # SOSS/NIRSpec only
+ResetStep : 'skip'         # MIRI only
+SuperBiasStep : 'run'      # SOSS/NIRSpec only
 RefPixStep : 'skip'         # SOSS only 
-DarkCurrentStep : 'skip'   # SOSS/NIRSpec only
-OneOverFStep_grp : 'skip'   # SOSS/NIRSpec only
+DarkCurrentStep : 'run'   # SOSS/NIRSpec only
+OneOverFStep_grp : 'run'   # SOSS/NIRSpec only
 LinearityStep : 'run'
 JumpStep : 'run'
 RampFitStep : 'run'
@@ -65,11 +65,11 @@ stage1_kwargs : {}
 # ===== Stage 2 Input Files & Parameters =====
 # List of stage 2 steps to run or skip.
 AssignWCSStep : 'run'
-Extract2DStep : 'skip'     # NIRSpec only
+Extract2DStep : 'run'     # NIRSpec only
 SourceTypeStep: 'run'
-WaveCorrStep : 'skip'      # NIRSpec only
-FlatFieldStep : 'run'      # SOSS/MIRI only
-BackgroundStep : 'run'     # SOSS/MIRI only
+WaveCorrStep : 'run'      # NIRSpec only
+FlatFieldStep : 'skip'      # SOSS/MIRI only
+BackgroundStep : 'skip'     # SOSS/MIRI only
 OneOverFStep_int : 'skip'  # SOSS/NIRSpec only
 BadPixStep : 'run'
 PCAReconstructStep : 'run'
@@ -136,39 +136,39 @@ soss_inner_mask_width : 40 #[36,38,40,42,44]
 optimize_soss_outer_mask_width : False
 soss_outer_mask_width : 70 #[66,68,70,72,74]
 # (NIRSpec only) For 1/f correction; width, in pixels, of trace mask. [10, 12, 14, 16, 18, 20, 22, 24]
-optimize_nirspec_mask_width : False
-nirspec_mask_width : 10 # [10, 12, 14, 16, 18, 20]
+optimize_nirspec_mask_width : True
+nirspec_mask_width : [10, 12, 14, 16, 18, 20]
 # For time domain jump detection; sigma threshold for a pixel to be flagged as an outlier. [5,6,7,8,9,10]
 optimize_time_jump_threshold : True
-time_jump_threshold : [5,6]
+time_jump_threshold : [5,6,7,8,9,10]
 # time_window in JumpStep [3,5,7,9,11]
 optimize_time_window : True
-time_window : [5,7,9] 
+time_window : [3,5,7,9,11] 
  
 # ===== Stage 2 parameter to sweep =====
 # (MIRI only) For background subtraction; width (in pixels) to mask around the trace. [14,16,18,20]
-optimize_miri_trace_width : True
-miri_trace_width : [16,18,20]
+optimize_miri_trace_width : False
+miri_trace_width : 18 # [16,18,20]
 # (MIRI only) For background subtraction; width (in pixels) of the background region to use on either side of the trace.
-optimize_miri_background_width : True
-miri_background_width : [11,12,13]
+optimize_miri_background_width : False
+miri_background_width : 12 # [11,12,13]
 # For outlier detection; sigma threshold for a pixel to be flagged as an outlier, spatially. [5,6,7,8,9,10,11,12,13,14,15]
 optimize_space_outlier_threshold : True
-space_outlier_threshold : [5,6,7]
+space_outlier_threshold : [5,6,7,8,9,10,11]
 # For outlier detection; sigma threshold for a pixel to be flagged as an outlier, temporally. [5,6,7,8,9,10,11,12,13,14,15]
 optimize_time_outlier_threshold : True
-time_outlier_threshold : [5,6,7]
+time_outlier_threshold : [5,6,7,8,9,10,11]
 # Box size in BadPixStep [2,3,4,5,6,7,8]
 optimize_box_size : True
-box_size : [4,5,6]
+box_size : [3,4,5,6,7,8]
 # Window size in BadPixStep [3,5,7,9,11]
 optimize_window_size : True
-window_size :  [5,7,9]
+window_size :  [3,5,7,9,11]
 
 # ===== Stage 3 parameter to sweep =====
 # Box width to extract around the trace center. Passing 'optimize' will find and use the aperture width that minimizes
 # the white light curve scatter.[3,4,5,6,7,8,9,10] SOSS MIRI 
 optimize_extract_width : True
-extract_width : [6,7,8,9,10]
+extract_width : [4,5,6,7,8,9,10]
 
 # ========================= END DMS CONFIG FILE =============================
