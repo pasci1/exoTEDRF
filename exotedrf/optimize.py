@@ -7,7 +7,7 @@ Created on 15 August 2025
 
 Custom JWST optimizer for exoTEDRF pipeline
 """
-
+print("RUN OPTIMIZER")
 # ======== STANDARD LIBRARY IMPORTS ========
 import os       # For file paths and environment variable handling
 import sys      # For exiting with error messages
@@ -109,7 +109,7 @@ w2 = cfg_early.get('w2', 1.0)
 # Allowed wavelength coverage for each instrument (microns)
 bands = {
     'miri':    (5.0, 13.0),
-    'nirspec': (1.0, 3.7),
+    'nirspec': (1.0, 5.0),
     'niriss':  (1.0, 2.8)
 }
 
@@ -877,9 +877,9 @@ def main():
 
     if 'nrs1' in filter:
         if wave_range is None:
-            wave_range = (2.9,)
+            wave_range = (2.9,5.0)
         if wave_range_plot is None:
-            wave_range_plot = (2.9,)
+            wave_range_plot = (2.9,5.0)
 
     elif 'niriss' in obs:
         if wave_range is None:
